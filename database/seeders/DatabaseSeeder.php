@@ -14,8 +14,16 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Local development only. Never run in production with these credentials.
-        $manager = User::firstOrNew(['email' => 'manager@alcawaka.test']);
-        $manager->forceFill(['name' => 'Demo Manager', 'password' => 'password', 'role' => UserRole::Manager])->save();
+        // One login per role, for trying the permission matrix.
+        $staff = [
+            ['manager@alcawaka.test', 'Demo Manager', UserRole::Manager],
+            ['frontdesk@alcawaka.test', 'Demo Front Desk', UserRole::FrontDesk],
+            ['housekeeping@alcawaka.test', 'Demo Housekeeping', UserRole::Housekeeping],
+            ['owner@alcawaka.test', 'Demo Owner', UserRole::Owner],
+        ];
+        foreach ($staff as [$email, $name, $role]) {
+            User::firstOrNew(['email' => $email])->forceFill(['name' => $name, 'password' => 'password', 'role' => $role])->save();
+        }
 
         $facilities = [
             ['Swimming pool', FacilityAccess::Paid, 'Poolside seating and towels. Free for in-house guests, day passes for visitors.', 20000],

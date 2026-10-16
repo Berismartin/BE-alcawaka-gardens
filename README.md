@@ -20,7 +20,7 @@ php artisan serve            # http://localhost:8000
 
 Local development uses SQLite (`database/database.sqlite`). For MySQL or Postgres, set the `DB_*` values in `.env`.
 
-The seeder creates a local-only staff login: `manager@alcawaka.test` / `password`.
+The seeder creates one local-only login per role, all with password `password`: `manager@`, `frontdesk@`, `housekeeping@` and `owner@alcawaka.test`.
 
 ## Tests
 
