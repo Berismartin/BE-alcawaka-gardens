@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Facilities\Facility;
 
+use App\Http\Resources\Media\MediaResource;
 use App\Models\Facilities\Facility;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -21,6 +22,7 @@ class FacilityResource extends JsonResource
             'access' => $this->access->value,
             'price_ugx' => $this->price_ugx,
             'is_active' => $this->is_active,
+            'photos' => MediaResource::collection($this->whenLoaded('photos')),
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

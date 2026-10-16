@@ -15,6 +15,7 @@ class FacilityRepository implements FacilityRepositoryInterface
     public function all(bool $activeOnly = false): Collection
     {
         return Facility::query()
+            ->with('photos')
             ->when($activeOnly, fn ($q) => $q->where('is_active', true))
             ->orderBy('name')
             ->get();
@@ -22,12 +23,12 @@ class FacilityRepository implements FacilityRepositoryInterface
 
     public function paginate(ListQuery $query): LengthAwarePaginator
     {
-        return $this->paginateList(Facility::query(), $query, ['name', 'description'], defaultSort: 'name');
+        return $this->paginateList(Facility::query()->with('photos'), $query, ['name', 'description'], defaultSort: 'name');
     }
 
     public function findById(string $id): ?Facility
     {
-        return Facility::find($id);
+        return Facility::with('photos')->find($id);
     }
 
     public function existsBySlug(string $slug, ?string $exceptId = null): bool

@@ -2,6 +2,7 @@
 
 namespace App\Domains\Facilities\Facility\Services;
 
+use App\Domains\Audit\AuditLog\Services\AuditLogger;
 use App\Domains\Facilities\Facility\DTOs\CreateFacilityDTO;
 use App\Domains\Facilities\Facility\DTOs\UpdateFacilityDTO;
 use App\Domains\Facilities\Facility\Enums\FacilityAccess;
@@ -18,7 +19,10 @@ use Illuminate\Support\Str;
 
 class FacilityService
 {
-    public function __construct(private FacilityRepositoryInterface $repository) {}
+    public function __construct(
+        private FacilityRepositoryInterface $repository,
+        private AuditLogger $audit,
+    ) {}
 
     /** @return Collection<int, Facility> */
     public function list(bool $activeOnly = false): Collection
@@ -45,7 +49,12 @@ class FacilityService
         }
         $this->assertPriceRule($dto->access, $dto->priceUgx);
 
-        return DB::transaction(fn () => $this->repository->create([...$dto->toArray(), 'slug' => $slug]));
+        return DB::transaction(function () use ($dto, $slug) {
+            $facility = $this->repository->create([...$dto->toArray(), 'slug' => $slug]);
+            $this->audit->record('facility.created', $facility);
+
+            return $facility;
+        });
     }
 
     public function update(string $id, UpdateFacilityDTO $dto): Facility
@@ -64,12 +73,23 @@ class FacilityService
         $price = $dto->has('price_ugx') ? $data['price_ugx'] : $facility->price_ugx;
         $this->assertPriceRule($access, $price);
 
-        return DB::transaction(fn () => $this->repository->update($facility, $data));
+        $before = $facility->attributesToArray();
+
+        return DB::transaction(function () use ($facility, $data, $before) {
+            $updated = $this->repository->update($facility, $data);
+            $this->audit->record('facility.updated', $updated, AuditLogger::diff($before, $data));
+
+            return $updated;
+        });
     }
 
     public function delete(string $id): void
     {
-        $this->repository->delete($this->find($id));
+        $facility = $this->find($id);
+        DB::transaction(function () use ($facility) {
+            $this->repository->delete($facility);
+            $this->audit->record('facility.deleted', $facility, ['name' => ['from' => $facility->name, 'to' => null]]);
+        });
     }
 
     /** Paid and reservation-only facilities must carry a price; free ones may not. */

@@ -33,6 +33,14 @@ routes/<module>/<file>.php
 - Money is stored as whole Ugandan Shillings (`*_ugx`, unsigned bigint). UGX has no minor unit.
 - IDs are UUIDs (`HasUuids`).
 
+## Shared building blocks (read docs/api-conventions.md)
+
+- **Paginated lists:** `ListRequest` (sortable and filter whitelists), the `AppliesListQuery` trait, and `respondPage()`.
+- **Permissions:** `permission:<area>.<view|manage>` middleware. The matrix is in `UserRole::permissions()`.
+- **Uploads:** the Media module plus `config/media.php` collections, with `HasMedia` on owner models.
+- **Idempotency:** `idempotent:required` on payments and bookings.
+- **Audit:** inject `AuditLogger` into services and record every important change.
+
 ## Adding a module
 
 1. Write the migration and model in `Models/<Module>/`.
@@ -45,7 +53,7 @@ routes/<module>/<file>.php
 ## Route areas
 
 - `/api/...` is the public website, readable without signing in.
-- `/api/portal/...` is the staff system, behind `auth:sanctum` plus the `staff` middleware (role is not `guest`).
+- `/api/portal/...` is the staff system, behind `auth:sanctum` plus `permission:<ability>` per route.
 - `/api/auth/...` handles login, `me` and logout with Sanctum bearer tokens.
 
 ## Before committing

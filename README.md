@@ -14,6 +14,7 @@ composer install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate --seed
+php artisan storage:link     # public uploads at /storage
 php artisan serve            # http://localhost:8000
 ```
 
@@ -35,5 +36,13 @@ php artisan test
 | GET | `/api/health` | anyone |
 | POST | `/api/auth/login` | anyone (rate-limited) |
 | GET | `/api/auth/me`, POST `/api/auth/logout` | signed in |
+| PATCH | `/api/auth/me/preferences` | signed in (theme mode, accent, density) |
 | GET | `/api/facilities` | public website |
-| GET, POST, GET `{id}`, PATCH `{id}`, DELETE `{id}` | `/api/portal/facilities` | staff |
+| GET (paginated), GET `{id}` | `/api/portal/facilities` | `facilities.view` |
+| POST, PATCH `{id}`, DELETE `{id}` | `/api/portal/facilities` | `facilities.manage` |
+| POST, PATCH `/order`, DELETE `{id}` | `/api/portal/media` | the collection's permission |
+| GET | `/api/media/{id}/file` | signed link only (private files) |
+| GET | `/api/portal/audit-logs` | `audit.view` |
+
+See [docs/api-conventions.md](docs/api-conventions.md) for pagination, errors, uploads and idempotency, and
+[docs/development-plan.md](docs/development-plan.md) for the roadmap.

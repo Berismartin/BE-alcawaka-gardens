@@ -3,6 +3,7 @@
 use App\Exceptions\DomainException;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureStaff;
+use App\Http\Middleware\Idempotent;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -23,7 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['staff' => EnsureStaff::class, 'permission' => EnsurePermission::class]);
+        $middleware->alias(['staff' => EnsureStaff::class, 'permission' => EnsurePermission::class, 'idempotent' => Idempotent::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) use ($isApi): void {
         $exceptions->shouldRenderJsonWhen($isApi);

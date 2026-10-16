@@ -1,0 +1,63 @@
+<?php
+
+namespace App\Http\Middleware;
+
+use App\Models\IdempotencyKey;
+use Closure;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * Safe retries for money and booking mutations. The client sends an
+ * Idempotency-Key header (a UUID per user action). The first request runs; a
+ * retry with the same key gets the stored response instead of running twice.
+ *
+ * ->middleware('idempotent')            key optional
+ * ->middleware('idempotent:required')   request rejected without a key
+ */
+class Idempotent
+{
+    public function handle(Request $request, Closure $next, ?string $mode = null): Response
+    {
+        $key = $request->header('Idempotency-Key');
+        if ($key === null || $key === '') {
+            return $mode === 'required'
+                ? $this->error('This request needs an Idempotency-Key header.', 400)
+                : $next($request);
+        }
+        if (strlen($key) > 100) {
+            return $this->error('Idempotency-Key must be 100 characters or fewer.', 400);
+        }
+
+        $fingerprint = hash('sha256', $request->method().'|'.$request->path().'|'.$request->getContent());
+
+        try {
+            $record = IdempotencyKey::create(['user_id' => $request->user()?->id, 'key' => $key, 'fingerprint' => $fingerprint]);
+        } catch (UniqueConstraintViolationException) {
+            $existing = IdempotencyKey::where('user_id', $request->user()?->id)->where('key', $key)->first();
+
+            return match (true) {
+                $existing === null => $this->error('Please try again.', 409),
+                $existing->fingerprint !== $fingerprint => $this->error('This Idempotency-Key was already used for a different request.', 422),
+                $existing->status === null => $this->error('This request is still being processed.', 409),
+                default => response($existing->body, $existing->status, ['Content-Type' => 'application/json', 'Idempotent-Replayed' => 'true']),
+            };
+        }
+
+        $response = $next($request);
+
+        if ($response->isSuccessful()) {
+            $record->update(['status' => $response->getStatusCode(), 'body' => $response->getContent()]);
+        } else {
+            $record->delete(); // a failed attempt may be retried with the same key
+        }
+
+        return $response;
+    }
+
+    private function error(string $message, int $status): Response
+    {
+        return response()->json(['success' => false, 'message' => $message, 'errors' => []], $status);
+    }
+}
