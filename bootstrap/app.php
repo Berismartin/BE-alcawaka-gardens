@@ -1,13 +1,16 @@
 <?php
 
 use App\Exceptions\DomainException;
+use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureStaff;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 $isApi = fn (Request $request) => $request->is('api/*') || $request->expectsJson();
@@ -20,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['staff' => EnsureStaff::class]);
+        $middleware->alias(['staff' => EnsureStaff::class, 'permission' => EnsurePermission::class]);
     })
     ->withExceptions(function (Exceptions $exceptions) use ($isApi): void {
         $exceptions->shouldRenderJsonWhen($isApi);
@@ -34,6 +37,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ) : null);
         $exceptions->render(fn (AuthenticationException $e, Request $r) => $isApi($r) ? response()->json(
             ['success' => false, 'message' => 'Unauthenticated.', 'errors' => []], 401
+        ) : null);
+        $exceptions->render(fn (AccessDeniedHttpException|AuthorizationException $e, Request $r) => $isApi($r) ? response()->json(
+            ['success' => false, 'message' => "You don't have permission to do this.", 'errors' => []], 403
         ) : null);
         $exceptions->render(fn (NotFoundHttpException $e, Request $r) => $isApi($r) ? response()->json(
             ['success' => false, 'message' => 'Not found.', 'errors' => []], 404

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Users;
 
+use App\Domains\Users\User\DTOs\PreferencesDTO;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -16,6 +17,8 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role->value,
+            'permissions' => $this->role->permissions(),
+            'preferences' => PreferencesDTO::resolve($this->preferences),
         ];
     }
 }

@@ -10,6 +10,8 @@ use App\Exceptions\EntityAlreadyExistsException;
 use App\Exceptions\EntityNotFoundException;
 use App\Exceptions\EntityValidationException;
 use App\Models\Facilities\Facility;
+use App\Support\Query\ListQuery;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,6 +24,11 @@ class FacilityService
     public function list(bool $activeOnly = false): Collection
     {
         return $this->repository->all($activeOnly);
+    }
+
+    public function paginate(ListQuery $query): LengthAwarePaginator
+    {
+        return $this->repository->paginate($query);
     }
 
     public function find(string $id): Facility

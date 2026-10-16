@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api\Facilities;
 use App\Actions\Facilities\Facility\CreateFacilityAction;
 use App\Actions\Facilities\Facility\DeleteFacilityAction;
 use App\Actions\Facilities\Facility\ListFacilitiesAction;
+use App\Actions\Facilities\Facility\PaginateFacilitiesAction;
 use App\Actions\Facilities\Facility\ShowFacilityAction;
 use App\Actions\Facilities\Facility\UpdateFacilityAction;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Facilities\Facility\ListFacilitiesRequest;
 use App\Http\Requests\Facilities\Facility\StoreFacilityRequest;
 use App\Http\Requests\Facilities\Facility\UpdateFacilityRequest;
+use App\Http\Resources\Facilities\Facility\FacilityResource;
 use Illuminate\Http\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -21,6 +24,7 @@ class FacilityController extends Controller
 {
     public function __construct(
         private ListFacilitiesAction $listAction,
+        private PaginateFacilitiesAction $paginateAction,
         private ShowFacilityAction $showAction,
         private CreateFacilityAction $createAction,
         private UpdateFacilityAction $updateAction,
@@ -33,10 +37,10 @@ class FacilityController extends Controller
         return $this->respond($this->listAction->execute(activeOnly: true));
     }
 
-    /** Staff portal: every facility, active or not. */
-    public function index(): JsonResponse
+    /** Staff portal: paginated, searchable, sortable, filterable. */
+    public function index(ListFacilitiesRequest $request): JsonResponse
     {
-        return $this->respond($this->listAction->execute());
+        return $this->respondPage($this->paginateAction->execute($request->toListQuery()), FacilityResource::class);
     }
 
     public function show(string $id): JsonResponse

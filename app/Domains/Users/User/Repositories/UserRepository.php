@@ -10,4 +10,11 @@ class UserRepository implements UserRepositoryInterface
     {
         return User::where('email', $email)->first();
     }
+
+    public function savePreferences(User $user, array $preferences): User
+    {
+        $user->forceFill(['preferences' => $preferences])->save();
+
+        return $user;
+    }
 }

@@ -3,12 +3,16 @@
 namespace App\Domains\Facilities\Facility\Repositories;
 
 use App\Models\Facilities\Facility;
+use App\Support\Query\ListQuery;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 interface FacilityRepositoryInterface
 {
     /** @return Collection<int, Facility> */
     public function all(bool $activeOnly = false): Collection;
+
+    public function paginate(ListQuery $query): LengthAwarePaginator;
 
     public function findById(string $id): ?Facility;
 

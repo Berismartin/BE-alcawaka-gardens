@@ -7,10 +7,14 @@ use Illuminate\Support\Facades\Route;
 Route::get('facilities', [FacilityController::class, 'publicIndex'])->name('facilities.public');
 
 // Staff portal
-Route::prefix('portal/facilities')->name('portal.facilities.')->middleware(['auth:sanctum', 'staff'])->group(function () {
-    Route::get('/', [FacilityController::class, 'index'])->name('index');
-    Route::post('/', [FacilityController::class, 'store'])->name('store');
-    Route::get('/{id}', [FacilityController::class, 'show'])->name('show');
-    Route::patch('/{id}', [FacilityController::class, 'update'])->name('update');
-    Route::delete('/{id}', [FacilityController::class, 'destroy'])->name('destroy');
+Route::prefix('portal/facilities')->name('portal.facilities.')->middleware('auth:sanctum')->group(function () {
+    Route::middleware('permission:facilities.view')->group(function () {
+        Route::get('/', [FacilityController::class, 'index'])->name('index');
+        Route::get('/{id}', [FacilityController::class, 'show'])->name('show');
+    });
+    Route::middleware('permission:facilities.manage')->group(function () {
+        Route::post('/', [FacilityController::class, 'store'])->name('store');
+        Route::patch('/{id}', [FacilityController::class, 'update'])->name('update');
+        Route::delete('/{id}', [FacilityController::class, 'destroy'])->name('destroy');
+    });
 });

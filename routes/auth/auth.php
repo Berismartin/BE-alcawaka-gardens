@@ -8,6 +8,7 @@ Route::prefix('auth')->name('auth.')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('me', [AuthController::class, 'me'])->name('me');
+        Route::patch('me/preferences', [AuthController::class, 'updatePreferences'])->name('preferences');
         Route::post('logout', [AuthController::class, 'logout'])->name('logout');
     });
 });
