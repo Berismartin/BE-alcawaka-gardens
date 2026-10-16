@@ -10,6 +10,8 @@ interface MediaRepositoryInterface
 {
     public function findById(string $id): ?Media;
 
+    public function findByPath(string $collection, string $path): ?Media;
+
     /** @param array<string, mixed> $data */
     public function create(array $data): Media;
 

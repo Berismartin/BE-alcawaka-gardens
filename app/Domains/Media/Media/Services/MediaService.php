@@ -98,6 +98,22 @@ class MediaService
         $this->repository->delete($media);
     }
 
+    /**
+     * Delete the upload a public URL points at, if it is one of ours in that collection.
+     * Links to other sites (e.g. stock photos) are ignored.
+     */
+    public function deleteByUrl(string $collection, string $url): void
+    {
+        $prefix = Storage::disk(config('media.disks.public'))->url('');
+        if (! str_starts_with($url, $prefix)) {
+            return;
+        }
+        $media = $this->repository->findByPath($collection, substr($url, strlen($prefix)));
+        if ($media) {
+            $this->delete($media);
+        }
+    }
+
     public function deleteAllFor(Model $owner): void
     {
         $this->repository->forOwner($owner)->each(fn (Media $m) => $this->delete($m));

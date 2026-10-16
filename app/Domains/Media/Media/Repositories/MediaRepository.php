@@ -13,6 +13,11 @@ class MediaRepository implements MediaRepositoryInterface
         return Media::find($id);
     }
 
+    public function findByPath(string $collection, string $path): ?Media
+    {
+        return Media::where('collection', $collection)->where('path', $path)->first();
+    }
+
     public function create(array $data): Media
     {
         return Media::create($data);

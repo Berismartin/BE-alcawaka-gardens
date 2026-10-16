@@ -18,6 +18,7 @@ class UserResource extends JsonResource
             'email' => $this->email,
             'role' => $this->role->value,
             'permissions' => $this->role->permissions(),
+            'has_pin' => $this->pin_hash !== null,
             'preferences' => PreferencesDTO::resolve($this->preferences),
         ];
     }

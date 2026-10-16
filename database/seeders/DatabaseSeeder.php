@@ -7,6 +7,7 @@ use App\Domains\Users\User\Enums\UserRole;
 use App\Models\Facilities\Facility;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class DatabaseSeeder extends Seeder
@@ -14,15 +15,18 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Local development only. Never run in production with these credentials.
-        // One login per role, for trying the permission matrix.
+        // One login per role, for trying the permission matrix. Each also has POS PIN 2580 (local only).
         $staff = [
             ['manager@alcawaka.test', 'Demo Manager', UserRole::Manager],
             ['frontdesk@alcawaka.test', 'Demo Front Desk', UserRole::FrontDesk],
             ['housekeeping@alcawaka.test', 'Demo Housekeeping', UserRole::Housekeeping],
             ['owner@alcawaka.test', 'Demo Owner', UserRole::Owner],
         ];
-        foreach ($staff as [$email, $name, $role]) {
-            User::firstOrNew(['email' => $email])->forceFill(['name' => $name, 'password' => 'password', 'role' => $role])->save();
+        // Production gets no demo logins: create the first real manager with `php artisan staff:create-manager`.
+        if (app()->environment('local', 'testing')) {
+            foreach ($staff as [$email, $name, $role]) {
+                User::firstOrNew(['email' => $email])->forceFill(['name' => $name, 'password' => 'password', 'role' => $role, 'pin_hash' => Hash::make('2580')])->save();
+            }
         }
 
         $facilities = [
@@ -40,6 +44,12 @@ class DatabaseSeeder extends Seeder
                 'price_ugx' => $price, // placeholder prices: replace with the client's real rates
                 'is_active' => true,
             ]);
+        }
+
+        $this->call(ContentSeeder::class);
+
+        if (app()->environment('local', 'testing')) {
+            $this->call(DemoDataSeeder::class);
         }
     }
 }

@@ -44,6 +44,13 @@ return [
             'permission' => 'payments.record',
             'mediable' => ['payment'],
         ],
+        'website_images' => [
+            'visibility' => 'public',
+            'mimes' => ['jpg', 'jpeg', 'png', 'webp'],
+            'max_kb' => 5120,
+            'permission' => 'content.manage',
+            'mediable' => [], // the CMS stores the file's URL on the entry or page
+        ],
         'hotel_logo' => [
             'visibility' => 'public',
             'mimes' => ['png', 'webp', 'jpg', 'jpeg'],
