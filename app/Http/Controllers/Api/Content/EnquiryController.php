@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Content;
 
+use App\Actions\Booking\ApplyGuestRequestAction;
 use App\Actions\Content\Enquiry\CreateEnquiryAction;
 use App\Actions\Content\Enquiry\PaginateEnquiriesAction;
 use App\Actions\Content\Enquiry\UpdateEnquiryAction;
@@ -31,5 +32,14 @@ class EnquiryController extends Controller
     public function update(UpdateEnquiryRequest $request, string $id, UpdateEnquiryAction $action): JsonResponse
     {
         return $this->respond($action->execute($id, $request->validated()), 'Enquiry updated.');
+    }
+
+    public function apply(string $id, ApplyGuestRequestAction $action): JsonResponse
+    {
+        $enquiry = $action->execute($id);
+
+        $done = $enquiry->request_type === 'cancel' ? 'Booking cancelled.' : 'New dates saved.';
+
+        return $this->respond($enquiry, $enquiry->email ? "{$done} The guest has been emailed." : "{$done} No email on file, so call the guest.");
     }
 }

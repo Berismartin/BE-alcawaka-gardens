@@ -28,6 +28,8 @@ use App\Domains\Reports\Report\Repositories\ReportRepository;
 use App\Domains\Reports\Report\Repositories\ReportRepositoryInterface;
 use App\Domains\Reservations\Reservation\Repositories\ReservationRepository;
 use App\Domains\Reservations\Reservation\Repositories\ReservationRepositoryInterface;
+use App\Domains\Rooms\MaintenanceIssue\Repositories\MaintenanceIssueRepository;
+use App\Domains\Rooms\MaintenanceIssue\Repositories\MaintenanceIssueRepositoryInterface;
 use App\Domains\Rooms\Room\Repositories\RoomRepository;
 use App\Domains\Rooms\Room\Repositories\RoomRepositoryInterface;
 use App\Domains\Rooms\RoomType\Repositories\RoomTypeRepository;
@@ -69,6 +71,7 @@ class DomainServiceProvider extends ServiceProvider
         SettingRepositoryInterface::class => SettingRepository::class,
         RoomTypeRepositoryInterface::class => RoomTypeRepository::class,
         RoomRepositoryInterface::class => RoomRepository::class,
+        MaintenanceIssueRepositoryInterface::class => MaintenanceIssueRepository::class,
         SeasonalDiscountRepositoryInterface::class => SeasonalDiscountRepository::class,
         GuestRepositoryInterface::class => GuestRepository::class,
         ReservationRepositoryInterface::class => ReservationRepository::class,
@@ -91,6 +94,7 @@ class DomainServiceProvider extends ServiceProvider
         'routes/rooms/rooms.php',
         'routes/guests/guests.php',
         'routes/reservations/reservations.php',
+        'routes/reservations/online.php',
         'routes/payments/payments.php',
         'routes/staff/staff.php',
         'routes/reports/reports.php',

@@ -88,10 +88,16 @@ class FolioService
         if (! $to) {
             throw new EntityValidationException('This guest has no email address. Add one, or print the receipt.', ['email' => ['Enter an email address.']]);
         }
-        Mail::to($to)->send(new ReceiptMail($reservation, $this->settings->all()));
+        Mail::to($to)->send($this->receipt($reservationId));
         $this->audit->record('folio.receipt_sent', $reservation, ['email' => ['from' => null, 'to' => $to]]);
 
         return $to;
+    }
+
+    /** The bill as a mailable; ->pdf() gives the printable file. */
+    public function receipt(string $reservationId): ReceiptMail
+    {
+        return new ReceiptMail($this->reservations->find($reservationId), $this->settings->all());
     }
 
     private function assertOpen(Reservation $reservation): void

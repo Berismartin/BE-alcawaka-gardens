@@ -25,7 +25,12 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware): void {
+    ->withMiddleware(function (Middleware $middleware) use ($isApi): void {
+        // Behind Caddy in production: trust its X-Forwarded-* headers so links (photos, signed
+        // private-document links) are https. Safe because the container publishes no port.
+        $middleware->trustProxies(at: '*');
+        // No web login page: a signed-out API call (even a plain file download) gets the JSON 401.
+        $middleware->redirectGuestsTo(fn (Request $r) => $isApi($r) ? null : '/');
         $middleware->alias(['staff' => EnsureStaff::class, 'permission' => EnsurePermission::class, 'idempotent' => Idempotent::class, 'pos.terminal' => EnsurePosTerminal::class]);
         $middleware->appendToGroup('api', TrackLastActive::class);
     })

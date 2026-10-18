@@ -16,6 +16,8 @@ final readonly class CreateReservationDTO
         public ?GuestDTO $guest = null,
         public ?string $specialRequests = null,
         public ?RecordPaymentDTO $payment = null,
+        // Website bookings: hold the room this long while the guest pays online.
+        public ?int $holdMinutes = null,
     ) {}
 
     /** @param array<string, mixed> $data */

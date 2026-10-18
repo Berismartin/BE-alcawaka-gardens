@@ -12,15 +12,17 @@ use App\Models\Rooms\Room;
 use App\Models\Rooms\RoomType;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[Hidden(['guest_key'])]
 #[Fillable([
     'number', 'guest_id', 'room_id', 'room_type_id', 'check_in', 'check_out', 'adults', 'children',
     'status', 'source', 'special_requests', 'external_uid', 'channel_id', 'hold_expires_at',
-    'checked_in_at', 'checked_out_at', 'cancelled_at', 'cancel_reason', 'created_by',
+    'checked_in_at', 'checked_out_at', 'cancelled_at', 'cancel_reason', 'created_by', 'guest_key',
 ])]
 class Reservation extends Model
 {
@@ -109,6 +111,7 @@ class Reservation extends Model
             'checked_in_at' => 'datetime',
             'checked_out_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'guest_key' => 'encrypted',
         ];
     }
 }

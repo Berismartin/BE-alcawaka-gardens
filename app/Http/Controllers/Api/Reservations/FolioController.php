@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Reservations;
 
 use App\Actions\Reservations\Reservation\AddChargeAction;
+use App\Actions\Reservations\Reservation\DownloadReceiptAction;
 use App\Actions\Reservations\Reservation\RecordPaymentAction;
 use App\Actions\Reservations\Reservation\RemoveChargeAction;
 use App\Actions\Reservations\Reservation\SendReceiptAction;
@@ -11,6 +12,7 @@ use App\Http\Requests\Payments\RecordPaymentRequest;
 use App\Http\Requests\Reservations\AddChargeRequest;
 use App\Http\Requests\Reservations\SendReceiptRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Response as HttpResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 /** The guest's bill (B06). Each call returns the whole updated reservation. */
@@ -36,5 +38,10 @@ class FolioController extends Controller
         $to = $action->execute($id, $request->validated('email'));
 
         return $this->respond(['email' => $to], "Receipt sent to {$to}.");
+    }
+
+    public function receiptPdf(string $id, DownloadReceiptAction $action): HttpResponse
+    {
+        return $action->execute($id);
     }
 }

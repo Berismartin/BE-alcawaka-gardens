@@ -3,28 +3,40 @@
 namespace App\Domains\Payments\Payment\Services;
 
 use App\Domains\Audit\AuditLog\Services\AuditLogger;
+use App\Domains\Facilities\FacilityBooking\Enums\ChargeMode;
+use App\Domains\Facilities\FacilityBooking\Enums\FacilityBookingStatus;
+use App\Domains\Notifications\Services\NotificationService;
 use App\Domains\Payments\Payment\DTOs\RecordPaymentDTO;
 use App\Domains\Payments\Payment\DTOs\RefundDTO;
 use App\Domains\Payments\Payment\Enums\PaymentMethod;
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
 use App\Domains\Payments\Payment\Repositories\PaymentRepositoryInterface;
 use App\Domains\Reservations\Reservation\Enums\ReservationStatus;
+use App\Domains\Settings\Setting\Services\SettingsService;
 use App\Exceptions\EntityNotFoundException;
 use App\Exceptions\EntityValidationException;
+use App\Mail\BookingConfirmedMail;
+use App\Mail\FacilityBookingConfirmedMail;
 use App\Models\Facilities\FacilityBooking;
 use App\Models\Payments\Payment;
 use App\Models\Reservations\Reservation;
+use App\Notifications\PortalNotification;
 use App\Support\Query\ListQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\LazyCollection;
+use Illuminate\Support\Str;
+use Throwable;
 
 class PaymentService
 {
     public function __construct(
         private PaymentRepositoryInterface $repository,
         private AuditLogger $audit,
+        private SettingsService $settings,
+        private NotificationService $notifications,
     ) {}
 
     public function paginate(ListQuery $query): LengthAwarePaginator
@@ -80,6 +92,45 @@ class PaymentService
         return $payment;
     }
 
+    /**
+     * A website guest pays online (a room booking or a facility booking): one pending payment for
+     * what is due. Any earlier request still waiting is dropped, so "resend" or "use another method"
+     * never double-charges.
+     */
+    public function startOnlinePayment(Reservation|FacilityBooking $owner, PaymentMethod $method): Payment
+    {
+        if (! in_array($method, [PaymentMethod::MtnMomo, PaymentMethod::AirtelMoney, PaymentMethod::Card], true)) {
+            throw new EntityValidationException('Choose mobile money or card.', ['payment_method' => ['Choose mobile money or card.']]);
+        }
+        $isRoom = $owner instanceof Reservation;
+        $owner->load($isRoom ? ['charges', 'payments'] : ['payments']);
+        $this->failPending($owner);
+
+        $payment = $this->repository->create([
+            $isRoom ? 'reservation_id' : 'facility_booking_id' => $owner->id,
+            'kind' => 'payment',
+            'method' => $method->value,
+            'amount_ugx' => $isRoom ? $owner->balance() : $owner->amount_ugx - $owner->paidAmount(),
+            'status' => PaymentStatus::Pending->value,
+            'reference' => 'WEB-'.strtoupper(Str::random(8)),
+            'received_at' => now(),
+        ]);
+        $this->audit->record('payment.requested', $owner, [
+            'amount_ugx' => ['from' => null, 'to' => $payment->amount_ugx],
+            'method' => ['from' => null, 'to' => $method->value],
+        ]);
+
+        return $payment;
+    }
+
+    /** Requests nobody approved: marked failed so they never count as money in. */
+    public function failPending(Reservation|FacilityBooking $owner): void
+    {
+        foreach ($this->repository->pendingFor($owner) as $payment) {
+            $this->repository->update($payment, ['status' => PaymentStatus::Failed->value, 'notes' => 'Not approved']);
+        }
+    }
+
     public function recordForFacilityBooking(FacilityBooking $booking, RecordPaymentDTO $dto): Payment
     {
         $this->assertDeskMethod($dto->method);
@@ -105,7 +156,7 @@ class PaymentService
         }
         $refundable = $payment->amount_ugx - $this->repository->refundedAmount($payment);
         if ($dto->amountUgx > $refundable) {
-            $message = 'You can refund at most '.self::ugx($refundable).' on this payment.';
+            $message = $refundable > 0 ? 'You can refund at most '.self::ugx($refundable).' on this payment.' : 'This payment has already been refunded in full.';
             throw new EntityValidationException($message, ['amount_ugx' => [$message]]);
         }
 
@@ -150,6 +201,9 @@ class PaymentService
             if ($updated->reservation) {
                 $this->confirmIfPaid($updated->reservation);
             }
+            if ($updated->facilityBooking) {
+                $this->confirmFacilityIfPaid($updated->facilityBooking);
+            }
 
             return $updated;
         });
@@ -158,10 +212,61 @@ class PaymentService
     /** A website hold becomes a real booking once it is fully paid, however the money arrived. */
     private function confirmIfPaid(Reservation $reservation): void
     {
-        $reservation->load(['charges', 'payments']);
+        // refresh(): payments load their reservation with only a few columns.
+        $reservation->refresh()->load(['charges', 'payments', 'guest', 'roomType']);
         if ($reservation->status === ReservationStatus::PendingPayment && $reservation->balance() <= 0) {
             $reservation->update(['status' => ReservationStatus::Confirmed->value, 'hold_expires_at' => null]);
             $this->audit->record('reservation.confirmed', $reservation);
+            $this->sendBookingMail($reservation, 'confirmed');
+        }
+    }
+
+    /** A website facility booking is confirmed once paid in full; the guest gets the confirmation. */
+    private function confirmFacilityIfPaid(FacilityBooking $booking): void
+    {
+        $booking->refresh()->load(['payments', 'facility']);
+        if ($booking->status !== FacilityBookingStatus::PendingPayment || $booking->charge_mode !== ChargeMode::Online || $booking->paidAmount() < $booking->amount_ugx) {
+            return;
+        }
+        $booking->update(['status' => FacilityBookingStatus::Confirmed->value, 'hold_expires_at' => null]);
+        $this->audit->record('facility_booking.paid', $booking, ['amount_ugx' => ['from' => null, 'to' => $booking->amount_ugx]]);
+        $this->announceFacilityBooking($booking);
+    }
+
+    /** A website facility booking is in: staff are told, the guest gets the confirmation. A mail outage never undoes it. */
+    public function announceFacilityBooking(FacilityBooking $booking): void
+    {
+        $booking->loadMissing(['payments', 'facility']);
+        $this->notifications->notify('facilities.view', new PortalNotification(
+            "{$booking->facility->name} booked online",
+            "{$booking->guest_name} · {$booking->party_size} ".($booking->party_size === 1 ? 'person' : 'people').' · '.$booking->starts_at->timezone('Africa/Kampala')->format('D j M H:i'),
+            '/portal/facilities',
+            'i-lucide-waves',
+        ));
+        if ($booking->guest_email) {
+            try {
+                Mail::to($booking->guest_email)->send(new FacilityBookingConfirmedMail($booking, $this->settings->all()));
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+    }
+
+    /**
+     * Confirmed, changed or cancelled: tells the guest by email. The change is already saved,
+     * so a mail outage is reported, never allowed to undo it.
+     */
+    public function sendBookingMail(Reservation $reservation, string $kind): void
+    {
+        $email = $reservation->guest?->email;
+        if (! $email) {
+            return;
+        }
+        try {
+            Mail::to($email)->send(new BookingConfirmedMail($reservation, $this->settings->all(), $kind));
+            $this->audit->record('reservation.confirmation_sent', $reservation, ['email' => ['from' => null, 'to' => $email]]);
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 

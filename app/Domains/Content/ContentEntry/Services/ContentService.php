@@ -31,7 +31,7 @@ class ContentService
     public static function siteDefaults(): array
     {
         return [
-            'location_label' => 'Uganda',
+            'location_label' => 'Mubende, Uganda',
             'hero_eyebrow' => 'Gardens · Events · Stays',
             'hero_title' => 'Where Uganda gathers to celebrate',
             'hero_subtitle' => 'Green lawns, shady trees and a sparkling pool, ready for your wedding, Kwanjula, graduation party or a quiet weekend away.',
@@ -59,7 +59,7 @@ class ContentService
             'instagram_url' => null,
             'facebook_url' => null,
             'tiktok_url' => null,
-            'map_query' => 'Kampala, Uganda',
+            'map_query' => 'Bakijjulula, Mubende, Uganda',
         ];
     }
 
@@ -116,7 +116,7 @@ class ContentService
             ->sortBy(fn (ContentEntry $e) => $e->data['starts_at'])
             ->values()->all();
 
-        $hotel = array_intersect_key($this->hotel->all(), array_flip(['hotel_name', 'phone', 'email', 'address', 'check_in_time', 'check_out_time']));
+        $hotel = array_intersect_key($this->hotel->all(), array_flip(['hotel_name', 'phone', 'email', 'address', 'check_in_time', 'check_out_time', 'cancellation_policy']));
 
         return ['hotel' => $hotel, 'site' => $this->site(), 'entries' => $entries];
     }

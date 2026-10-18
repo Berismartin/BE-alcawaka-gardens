@@ -1,0 +1,103 @@
+# Alcawaka Gardens on the shared VM (next to WiFi billing and Campus 360).
+#
+# Layout on the VM:   /apps/wifibilling                       (existing, unchanged — owns 80/443 via beris-caddy)
+#                     /apps/be-campus360                      (existing, unchanged)
+#                     /apps/alcawaka/BE-alcawaka-gardens      (this repo: API + this compose file)
+#                     /apps/alcawaka/FE-alcawaka-gardens      (the website + staff portal, built from here)
+#
+#   cp .env.production.example .env        # fill in every <...>; never commit it
+#   docker compose up -d --build
+#   docker compose exec alcawaka-api php artisan db:seed --force                       # venue basics (once)
+#   docker compose exec -it alcawaka-api php artisan staff:create-manager <email> "<name>"   # first login (once)
+#
+# Publishes NO host ports. HTTPS comes from the WiFi billing Caddy (beris-caddy), which already owns
+# 80/443: alcawaka-api and alcawaka-web join that stack's Docker network (PROXY_NETWORK) and Caddy proxies
+#   <site domain>      → alcawaka-web:3000
+#   api.<site domain>  → alcawaka-api:8080          (see docker/caddy/alcawaka.caddy)
+# Every service is prefixed `alcawaka-` so nothing collides with `app`, `postgres`, `campus360-*` … on the
+# shared network. Own Postgres: the three apps stay independent. No Redis or queue worker: nothing here
+# queues jobs, and the cache/locks live in Postgres.
+
+name: alcawaka
+
+x-api: &api
+  build: .
+  image: alcawaka-api:latest
+  env_file: .env
+  restart: unless-stopped
+  networks: [alcawaka]
+
+services:
+  alcawaka-api:
+    <<: *api
+    container_name: alcawaka-api
+    environment:
+      # Web container only: migrate --force, storage:link, config/route/view/event cache on start.
+      AUTORUN_ENABLED: "true"
+    volumes:
+      - storage:/var/www/html/storage/app   # photos (public) and ID documents (private) survive rebuilds
+    networks: [alcawaka, proxy]
+    mem_limit: 512m
+    depends_on:
+      alcawaka-postgres:
+        condition: service_healthy
+
+  # Expires unpaid website holds every minute, syncs channel calendars, prunes old idempotency keys.
+  alcawaka-scheduler:
+    <<: *api
+    container_name: alcawaka-scheduler
+    command: ["php", "/var/www/html/artisan", "schedule:work"]
+    stop_signal: SIGTERM
+    volumes:
+      - storage:/var/www/html/storage/app
+    healthcheck:
+      test: ["CMD", "healthcheck-schedule"]
+      start_period: 10s
+    mem_limit: 256m
+    depends_on:
+      alcawaka-api:
+        condition: service_healthy
+
+  # Public website (server-rendered for Google) + staff portal + POS, one Nuxt server.
+  alcawaka-web:
+    build: ../FE-alcawaka-gardens
+    image: alcawaka-web:latest
+    container_name: alcawaka-web
+    restart: unless-stopped
+    environment:
+      NUXT_PUBLIC_API_BASE: ${APP_URL:?Set APP_URL in .env}/api
+    networks: [proxy]
+    mem_limit: 384m
+    depends_on:
+      alcawaka-api:
+        condition: service_healthy
+
+  alcawaka-postgres:
+    image: postgres:17-alpine
+    container_name: alcawaka-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-alcawaka}
+      POSTGRES_USER: ${DB_USERNAME:-alcawaka}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    mem_limit: 512m
+    networks: [alcawaka]
+
+volumes:
+  postgres-data:
+  storage:
+
+networks:
+  alcawaka: {}
+  # The WiFi billing stack's network (where beris-caddy lives). Find its name on the VM with:
+  #   docker network ls | grep beris      → e.g. wifibilling_beris
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:?Set PROXY_NETWORK in .env (docker network ls | grep beris)}

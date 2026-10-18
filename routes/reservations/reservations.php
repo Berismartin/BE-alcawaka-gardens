@@ -10,6 +10,7 @@ Route::prefix('portal')->name('portal.')->middleware('auth:sanctum')->group(func
         Route::get('reservations/{id}', [ReservationController::class, 'show'])->name('reservations.show');
         Route::get('calendar', [ReservationController::class, 'calendar'])->name('calendar');
         Route::get('availability', [ReservationController::class, 'availability'])->name('availability');
+        Route::get('reservations/{id}/receipt.pdf', [FolioController::class, 'receiptPdf'])->middleware('throttle:30,1,reservations.receipt-pdf')->name('reservations.receipt-pdf');
     });
 
     Route::prefix('reservations')->name('reservations.')->middleware('permission:reservations.manage')->group(function () {
@@ -21,7 +22,7 @@ Route::prefix('portal')->name('portal.')->middleware('auth:sanctum')->group(func
         Route::post('/{id}/no-show', [ReservationController::class, 'noShow'])->name('no-show');
         Route::post('/{id}/charges', [FolioController::class, 'addCharge'])->name('charges.store');
         Route::delete('/{id}/charges/{chargeId}', [FolioController::class, 'removeCharge'])->name('charges.destroy');
-        Route::post('/{id}/receipt', [FolioController::class, 'sendReceipt'])->middleware('throttle:10,1')->name('receipt');
+        Route::post('/{id}/receipt', [FolioController::class, 'sendReceipt'])->middleware('throttle:10,1,reservations.receipt')->name('receipt');
     });
 
     Route::post('reservations/{id}/payments', [FolioController::class, 'recordPayment'])

@@ -30,12 +30,14 @@ class Idempotent
             return $this->error('Idempotency-Key must be 100 characters or fewer.', 400);
         }
 
+        // Signed-in staff get their own key space; website guests share one (keys are random UUIDs).
+        $scope = $request->user() ? 'user:'.$request->user()->id : 'guest';
         $fingerprint = hash('sha256', $request->method().'|'.$request->path().'|'.$request->getContent());
 
         try {
-            $record = IdempotencyKey::create(['user_id' => $request->user()?->id, 'key' => $key, 'fingerprint' => $fingerprint]);
+            $record = IdempotencyKey::create(['user_id' => $request->user()?->id, 'scope' => $scope, 'key' => $key, 'fingerprint' => $fingerprint]);
         } catch (UniqueConstraintViolationException) {
-            $existing = IdempotencyKey::where('user_id', $request->user()?->id)->where('key', $key)->first();
+            $existing = IdempotencyKey::where('scope', $scope)->where('key', $key)->first();
 
             return match (true) {
                 $existing === null => $this->error('Please try again.', 409),

@@ -86,6 +86,9 @@ class FacilityService
     public function delete(string $id): void
     {
         $facility = $this->find($id);
+        if ($this->repository->hasBookings($facility)) {
+            throw new EntityValidationException("{$facility->name} has bookings on record, so it can't be deleted. Switch it to closed instead: it disappears from the website.");
+        }
         DB::transaction(function () use ($facility) {
             $this->repository->delete($facility);
             $this->audit->record('facility.deleted', $facility, ['name' => ['from' => $facility->name, 'to' => null]]);

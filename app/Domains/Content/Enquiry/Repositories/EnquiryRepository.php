@@ -13,7 +13,7 @@ class EnquiryRepository implements EnquiryRepositoryInterface
 
     public function paginate(ListQuery $query): LengthAwarePaginator
     {
-        return $this->paginateList(Enquiry::query(), $query, ['name', 'phone', 'email', 'event_type', 'message']);
+        return $this->paginateList(Enquiry::query()->with('reservation:id,number,status'), $query, ['name', 'phone', 'email', 'event_type', 'message']);
     }
 
     public function findById(string $id): ?Enquiry

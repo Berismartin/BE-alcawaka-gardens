@@ -4,6 +4,7 @@ namespace App\Domains\Rooms\Room\Services;
 
 use App\Domains\Audit\AuditLog\Services\AuditLogger;
 use App\Domains\Notifications\Services\NotificationService;
+use App\Domains\Rooms\MaintenanceIssue\Repositories\MaintenanceIssueRepositoryInterface;
 use App\Domains\Rooms\Room\DTOs\ChangeRoomStatusDTO;
 use App\Domains\Rooms\Room\DTOs\CreateRoomDTO;
 use App\Domains\Rooms\Room\DTOs\UpdateRoomDTO;
@@ -25,6 +26,7 @@ class RoomService
         private RoomRepositoryInterface $repository,
         private AuditLogger $audit,
         private NotificationService $notifications,
+        private MaintenanceIssueRepositoryInterface $issues,
     ) {}
 
     public function paginate(ListQuery $query): LengthAwarePaginator
@@ -105,9 +107,16 @@ class RoomService
         }
 
         $wasDirty = $room->status === RoomStatus::NeedsCleaning;
+        $wasClosed = $room->status->blocksBooking();
 
-        return DB::transaction(function () use ($room, $data, $dto, $wasDirty) {
+        return DB::transaction(function () use ($room, $data, $dto, $wasDirty, $wasClosed) {
             $updated = $this->setStatus($room, $data);
+            // Closing a room logs the issue; reopening it marks those issues fixed.
+            if ($dto->status->blocksBooking() && ! $wasClosed) {
+                $this->issues->create(['room_id' => $room->id, 'description' => $dto->note, 'closes_room' => true, 'reported_by' => auth()->id()]);
+            } elseif (! $dto->status->blocksBooking() && $wasClosed) {
+                $this->issues->resolveClosing($room, auth()->id(), "Room marked {$dto->status->phrase()}");
+            }
             if ($dto->status === RoomStatus::Available && $wasDirty) {
                 $this->notifications->notify('reservations.manage', new PortalNotification("Room {$room->number} is clean and ready", null, '/portal/housekeeping', 'i-lucide-sparkles'));
             }

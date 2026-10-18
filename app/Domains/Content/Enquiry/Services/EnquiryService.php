@@ -41,10 +41,15 @@ class EnquiryService
         return $this->repository->paginate($query);
     }
 
+    public function find(string $id): Enquiry
+    {
+        return $this->repository->findById($id) ?? throw new EntityNotFoundException('Enquiry', $id);
+    }
+
     /** @param array{status?: string, notes?: ?string} $data */
     public function update(string $id, array $data): Enquiry
     {
-        $enquiry = $this->repository->findById($id) ?? throw new EntityNotFoundException('Enquiry', $id);
+        $enquiry = $this->find($id);
         $before = $enquiry->attributesToArray();
 
         return DB::transaction(function () use ($enquiry, $data, $before) {

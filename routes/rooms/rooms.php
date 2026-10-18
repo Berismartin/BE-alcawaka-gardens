@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Rates\SeasonalDiscountController;
+use App\Http\Controllers\Api\Rooms\MaintenanceController;
 use App\Http\Controllers\Api\Rooms\RoomController;
 use App\Http\Controllers\Api\Rooms\RoomTypeController;
 use Illuminate\Support\Facades\Route;
@@ -34,4 +35,8 @@ Route::prefix('portal')->name('portal.')->middleware('auth:sanctum')->group(func
 
     Route::patch('rooms/{id}/status', [RoomController::class, 'changeStatus'])
         ->middleware('permission:housekeeping.manage')->name('rooms.status');
+
+    Route::get('maintenance-issues', [MaintenanceController::class, 'index'])->middleware('permission:housekeeping.view')->name('maintenance-issues.index');
+    Route::post('maintenance-issues', [MaintenanceController::class, 'store'])->middleware('permission:maintenance.report')->name('maintenance-issues.store');
+    Route::post('maintenance-issues/{id}/resolve', [MaintenanceController::class, 'resolve'])->middleware('permission:housekeeping.manage')->name('maintenance-issues.resolve');
 });

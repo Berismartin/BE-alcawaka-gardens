@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Domains\Facilities\Facility\Enums\FacilityAccess;
 use App\Domains\Users\User\Enums\UserRole;
 use App\Models\Facilities\Facility;
+use App\Models\Settings\Setting;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -27,6 +28,12 @@ class DatabaseSeeder extends Seeder
             foreach ($staff as [$email, $name, $role]) {
                 User::firstOrNew(['email' => $email])->forceFill(['name' => $name, 'password' => 'password', 'role' => $role, 'pin_hash' => Hash::make('2580')])->save();
             }
+        }
+
+        // The venue's real contact details. firstOrCreate: never overwrite what staff later change in Settings.
+        $contacts = ['phone' => '+256 772 408609', 'email' => 'alcawakagardens@gmail.com', 'address' => 'Bakijjulula, Mubende, Uganda'];
+        foreach ($contacts as $key => $value) {
+            Setting::firstOrCreate(['key' => $key], ['value' => $value]);
         }
 
         $facilities = [

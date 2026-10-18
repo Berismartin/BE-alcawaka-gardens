@@ -27,8 +27,9 @@ enum UserRole: string
             self::FrontDesk => [
                 'dashboard.view', 'reservations.manage', 'guests.manage', 'payments.view', 'payments.record',
                 'rooms.view', 'housekeeping.view', 'facilities.view', 'facilities.book', 'media.upload', 'enquiries.manage',
+                'maintenance.report',
             ],
-            self::Housekeeping => ['housekeeping.manage', 'rooms.view'],
+            self::Housekeeping => ['housekeeping.manage', 'rooms.view', 'maintenance.report'],
             // Manager-only abilities include rooms.manage, rates.manage, payments.refund, staff.manage,
             // channels.manage, settings.manage, pos.manage and content.manage (website CMS).
             self::Manager => ['*'],

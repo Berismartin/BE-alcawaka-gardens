@@ -65,6 +65,11 @@ class ReservationRepository implements ReservationRepositoryInterface
         return Reservation::with(self::DETAIL)->find($id);
     }
 
+    public function findByNumber(int $number): ?Reservation
+    {
+        return Reservation::with(self::DETAIL)->where('number', $number)->first();
+    }
+
     public function nextNumber(): int
     {
         // shortcut: max + 1 relies on the unique index to reject a rare simultaneous insert; use a sequence table if bookings ever race.

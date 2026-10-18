@@ -43,11 +43,19 @@ class GuestService
         });
     }
 
-    /** Bookings: a returning guest (same phone) keeps one record instead of a duplicate. */
-    public function findOrCreate(GuestDTO $dto): Guest
+    /**
+     * Bookings: a returning guest keeps one record instead of a duplicate. At the desk staff see
+     * who is in front of them, so the phone is enough. Online anyone can type any phone, so the
+     * email must match too; otherwise the booking would land on (and show) someone else's record.
+     */
+    public function findOrCreate(GuestDTO $dto, bool $requireEmailMatch = false): Guest
     {
         $this->assertPhone($dto->phone);
-        $existing = $dto->phone ? $this->repository->findByPhone($dto->phone) : null;
+        $existing = match (true) {
+            ! $dto->phone => null,
+            $requireEmailMatch => $dto->email ? $this->repository->findByPhoneAndEmail($dto->phone, $dto->email) : null,
+            default => $this->repository->findByPhone($dto->phone),
+        };
 
         return $existing ?? $this->create($dto);
     }

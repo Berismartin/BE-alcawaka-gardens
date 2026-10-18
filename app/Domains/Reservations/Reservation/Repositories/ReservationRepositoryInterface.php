@@ -16,6 +16,8 @@ interface ReservationRepositoryInterface
 
     public function nextNumber(): int;
 
+    public function findByNumber(int $number): ?Reservation;
+
     /** @return list<string> room ids with at least one night taken in [checkIn, checkOut) */
     public function takenRoomIds(string $checkIn, string $checkOut, ?string $exceptReservationId = null): array;
 

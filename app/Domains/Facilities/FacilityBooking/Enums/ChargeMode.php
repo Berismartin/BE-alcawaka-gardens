@@ -8,4 +8,5 @@ enum ChargeMode: string
     case Folio = 'folio';         // added to the guest's room bill
     case Paid = 'paid';           // paid now at the desk
     case PayLater = 'pay_later';  // pending payment
+    case Online = 'online';       // booked and paid on the website
 }

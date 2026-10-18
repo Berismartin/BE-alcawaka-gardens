@@ -25,4 +25,6 @@ interface FacilityRepositoryInterface
     public function update(Facility $facility, array $data): Facility;
 
     public function delete(Facility $facility): void;
+
+    public function hasBookings(Facility $facility): bool;
 }

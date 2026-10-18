@@ -2,6 +2,7 @@
 
 namespace App\Domains\Facilities\FacilityBooking\Repositories;
 
+use App\Domains\Facilities\FacilityBooking\Enums\ChargeMode;
 use App\Domains\Facilities\FacilityBooking\Enums\FacilityBookingStatus;
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
 use App\Models\Facilities\FacilityBooking;
@@ -9,6 +10,7 @@ use App\Models\Payments\Payment;
 use App\Support\Query\AppliesListQuery;
 use App\Support\Query\ListQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 class FacilityBookingRepository implements FacilityBookingRepositoryInterface
 {
@@ -36,6 +38,13 @@ class FacilityBookingRepository implements FacilityBookingRepositoryInterface
         $booking->update($data);
 
         return $booking->refresh()->load(self::WITH);
+    }
+
+    public function expiredOnlineHolds(): Collection
+    {
+        return FacilityBooking::where('status', FacilityBookingStatus::PendingPayment->value)
+            ->where('charge_mode', ChargeMode::Online->value)
+            ->where('hold_expires_at', '<', now())->get();
     }
 
     public function summary(string $dayStart, string $dayEnd, string $weekEnd): array

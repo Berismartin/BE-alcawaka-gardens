@@ -2,6 +2,8 @@
 
 namespace App\Domains\Content\Enquiry\DTOs;
 
+use App\Domains\Guests\Guest\ValueObjects\PhoneNumber;
+
 final readonly class CreateEnquiryDTO
 {
     public function __construct(
@@ -12,6 +14,10 @@ final readonly class CreateEnquiryDTO
         public ?string $eventType = null,
         public ?string $eventDate = null,
         public ?int $guests = null,
+        public ?string $reservationId = null,
+        public ?string $requestType = null,
+        public ?string $requestedCheckIn = null,
+        public ?string $requestedCheckOut = null,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -19,7 +25,7 @@ final readonly class CreateEnquiryDTO
     {
         return new self(
             name: $data['name'],
-            phone: $data['phone'],
+            phone: PhoneNumber::normalize($data['phone']) ?? $data['phone'], // same +256 form as guests, so staff can search and call it
             message: $data['message'],
             email: $data['email'] ?? null,
             eventType: $data['event_type'] ?? null,
@@ -39,6 +45,10 @@ final readonly class CreateEnquiryDTO
             'event_date' => $this->eventDate,
             'guests' => $this->guests,
             'message' => $this->message,
+            'reservation_id' => $this->reservationId,
+            'request_type' => $this->requestType,
+            'requested_check_in' => $this->requestedCheckIn,
+            'requested_check_out' => $this->requestedCheckOut,
         ];
     }
 }

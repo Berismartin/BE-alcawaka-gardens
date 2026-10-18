@@ -71,7 +71,7 @@ class ReservationService
         $room = $this->bookableRoom($dto->roomId, $stay);
 
         $id = DB::transaction(function () use ($dto, $stay, $room) {
-            $guest = $dto->guestId ? $this->guests->find($dto->guestId) : $this->guests->findOrCreate($dto->guest);
+            $guest = $dto->guestId ? $this->guests->find($dto->guestId) : $this->guests->findOrCreate($dto->guest, requireEmailMatch: $dto->source === ReservationSource::Website);
             $reservation = $this->repository->create([
                 'number' => $this->repository->nextNumber(),
                 'guest_id' => $guest->id,
@@ -81,7 +81,8 @@ class ReservationService
                 'check_out' => $stay->checkOut,
                 'adults' => $stay->adults,
                 'children' => $stay->children,
-                'status' => ReservationStatus::Confirmed->value,
+                'status' => ($dto->holdMinutes ? ReservationStatus::PendingPayment : ReservationStatus::Confirmed)->value,
+                'hold_expires_at' => $dto->holdMinutes ? now()->addMinutes($dto->holdMinutes) : null,
                 'source' => $dto->source->value,
                 'special_requests' => $dto->specialRequests,
                 'created_by' => auth()->id(),
@@ -287,6 +288,7 @@ class ReservationService
             DB::transaction(function () use ($reservation) {
                 $this->repository->releaseNights($reservation);
                 $this->repository->update($reservation, ['status' => ReservationStatus::Expired->value]);
+                $this->payments->failPending($reservation);
                 $this->audit->record('reservation.expired', $reservation);
             });
         }

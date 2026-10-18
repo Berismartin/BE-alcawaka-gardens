@@ -3,6 +3,7 @@
 namespace App\Domains\Facilities\Facility\Repositories;
 
 use App\Models\Facilities\Facility;
+use App\Models\Facilities\FacilityBooking;
 use App\Support\Query\AppliesListQuery;
 use App\Support\Query\ListQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -53,5 +54,10 @@ class FacilityRepository implements FacilityRepositoryInterface
     public function delete(Facility $facility): void
     {
         $facility->delete();
+    }
+
+    public function hasBookings(Facility $facility): bool
+    {
+        return FacilityBooking::where('facility_id', $facility->id)->exists();
     }
 }

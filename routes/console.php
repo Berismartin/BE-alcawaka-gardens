@@ -1,6 +1,7 @@
 <?php
 
 use App\Domains\Channels\Channel\Services\ChannelService;
+use App\Domains\Facilities\FacilityBooking\Services\FacilityBookingService;
 use App\Domains\Reservations\Reservation\Services\ReservationService;
 use App\Domains\Users\User\Enums\UserRole;
 use App\Models\IdempotencyKey;
@@ -42,6 +43,10 @@ Schedule::command('model:prune', ['--model' => [IdempotencyKey::class]])->daily(
 // Unpaid website holds give their room back.
 Schedule::call(fn () => app(ReservationService::class)->expireHolds())
     ->everyMinute()->name('reservations:expire-holds')->withoutOverlapping();
+
+// Unpaid website facility bookings are cancelled when their hold runs out.
+Schedule::call(fn () => app(FacilityBookingService::class)->expireHolds())
+    ->everyMinute()->name('facility-bookings:expire-holds')->withoutOverlapping();
 
 // Pull OTA calendar feeds so their bookings block our rooms.
 Schedule::call(fn () => app(ChannelService::class)->syncAll())

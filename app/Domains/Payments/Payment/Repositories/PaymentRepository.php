@@ -3,11 +3,14 @@
 namespace App\Domains\Payments\Payment\Repositories;
 
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
+use App\Models\Facilities\FacilityBooking;
 use App\Models\Payments\Payment;
+use App\Models\Reservations\Reservation;
 use App\Support\Query\AppliesListQuery;
 use App\Support\Query\ListQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\LazyCollection;
 
 class PaymentRepository implements PaymentRepositoryInterface
@@ -82,6 +85,12 @@ class PaymentRepository implements PaymentRepositoryInterface
     public function refundedAmount(Payment $payment): int
     {
         return (int) $payment->refunds()->where('status', PaymentStatus::Succeeded->value)->sum('amount_ugx');
+    }
+
+    public function pendingFor(Reservation|FacilityBooking $owner): Collection
+    {
+        return Payment::where($owner instanceof Reservation ? 'reservation_id' : 'facility_booking_id', $owner->id)
+            ->where('status', PaymentStatus::Pending->value)->get();
     }
 
     public function summary(string $from, string $to): array

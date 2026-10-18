@@ -20,6 +20,15 @@ class EnquiryResource extends JsonResource
             'event_date' => $this->event_date?->format('Y-m-d'),
             'guests' => $this->guests,
             'message' => $this->message,
+            // A guest's change or cancel request from "My booking": staff can apply it in one click.
+            'booking_request' => $this->request_type ? [
+                'type' => $this->request_type,
+                'reservation_id' => $this->reservation_id,
+                'reference' => $this->reservation?->reference(),
+                'reservation_status' => $this->reservation?->status->value,
+                'check_in' => $this->requested_check_in,
+                'check_out' => $this->requested_check_out,
+            ] : null,
             'status' => $this->status->value,
             'notes' => $this->notes,
             'created_at' => $this->created_at?->toISOString(),

@@ -12,4 +12,10 @@ enum FacilityAccess: string
     {
         return $this !== self::FreeForGuests;
     }
+
+    /** Online price: a day pass is per person; a reservation (event space, meeting room) is one price. */
+    public function onlineTotal(int $price, int $partySize): int
+    {
+        return $this === self::Paid ? $price * $partySize : $price;
+    }
 }

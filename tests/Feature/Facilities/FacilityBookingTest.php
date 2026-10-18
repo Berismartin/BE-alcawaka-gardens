@@ -41,6 +41,10 @@ class FacilityBookingTest extends TestCase
         $this->getJson('/api/portal/facility-bookings/summary')->assertOk()
             ->assertJsonPath('data.visitors_today', 6)->assertJsonPath('data.income_today_ugx', 100000)->assertJsonPath('data.pending_payments', 0);
         $this->getJson('/api/portal/payments?q=Namatovu')->assertJsonPath('data.0.facility_booking.facility_name', 'Pool');
+
+        // A facility with bookings keeps its history: it can be closed, not deleted.
+        $this->actingAsRole(UserRole::Manager);
+        $this->deleteJson("/api/portal/facilities/{$pool->id}")->assertUnprocessable()->assertJsonPath('message', fn ($m) => str_contains($m, 'has bookings on record'));
     }
 
     public function test_in_house_guest_charge_goes_on_the_room_bill(): void

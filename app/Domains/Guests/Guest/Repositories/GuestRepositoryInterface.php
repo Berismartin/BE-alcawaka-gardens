@@ -14,6 +14,9 @@ interface GuestRepositoryInterface
 
     public function findByPhone(string $phone): ?Guest;
 
+    /** Same phone and same email (any case): safe proof it is the same person. */
+    public function findByPhoneAndEmail(string $phone, string $email): ?Guest;
+
     public function hasReservations(Guest $guest): bool;
 
     /** @param array<string, mixed> $data */

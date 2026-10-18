@@ -5,6 +5,7 @@ namespace App\Domains\Facilities\FacilityBooking\Repositories;
 use App\Models\Facilities\FacilityBooking;
 use App\Support\Query\ListQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Collection;
 
 interface FacilityBookingRepositoryInterface
 {
@@ -17,6 +18,9 @@ interface FacilityBookingRepositoryInterface
 
     /** @param array<string, mixed> $data */
     public function update(FacilityBooking $booking, array $data): FacilityBooking;
+
+    /** @return Collection<int, FacilityBooking> website bookings whose payment hold ran out */
+    public function expiredOnlineHolds(): Collection;
 
     /** @return array<string, mixed> KPIs for the facilities page (B14) */
     public function summary(string $dayStart, string $dayEnd, string $weekEnd): array;

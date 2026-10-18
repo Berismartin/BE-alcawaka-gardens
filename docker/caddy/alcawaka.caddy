@@ -1,0 +1,20 @@
+# Add these blocks to the WiFi billing Caddyfile on the VM
+# (/apps/wifibilling/docker/caddy/Caddyfile), then reload Caddy:
+#   docker exec beris-caddy caddy reload --config /etc/caddy/Caddyfile
+# Caddy gets the Let's Encrypt certificates automatically once each DNS A record points at the VM.
+# Replace alcawakagardens.com with the real domain.
+
+alcawakagardens.com {
+    encode zstd gzip
+    reverse_proxy alcawaka-web:3000
+}
+
+# One address for Google: www sends visitors to the main domain.
+www.alcawakagardens.com {
+    redir https://alcawakagardens.com{uri} permanent
+}
+
+api.alcawakagardens.com {
+    encode zstd gzip
+    reverse_proxy alcawaka-api:8080
+}

@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\Route;
 
 // Public website
 Route::get('site', [ContentController::class, 'site'])->name('site');
-Route::post('enquiries', [EnquiryController::class, 'store'])->middleware('throttle:5,1')->name('enquiries.store');
+Route::post('enquiries', [EnquiryController::class, 'store'])->middleware('throttle:5,1,content.enquiries.store')->name('enquiries.store');
 
 // Staff portal: website CMS
 Route::prefix('portal/content')->name('portal.content.')->middleware(['auth:sanctum', 'permission:content.manage'])->group(function () {
@@ -21,4 +21,5 @@ Route::prefix('portal/content')->name('portal.content.')->middleware(['auth:sanc
 Route::prefix('portal/enquiries')->name('portal.enquiries.')->middleware('auth:sanctum')->group(function () {
     Route::get('/', [EnquiryController::class, 'index'])->middleware('permission:enquiries.view')->name('index');
     Route::patch('/{id}', [EnquiryController::class, 'update'])->middleware('permission:enquiries.manage')->name('update');
+    Route::post('/{id}/apply', [EnquiryController::class, 'apply'])->middleware('permission:reservations.manage')->name('apply');
 });

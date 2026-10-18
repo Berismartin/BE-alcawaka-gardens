@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
 
-#[Fillable(['user_id', 'key', 'fingerprint', 'status', 'body'])]
+#[Fillable(['user_id', 'scope', 'key', 'fingerprint', 'status', 'body'])]
 class IdempotencyKey extends Model
 {
     use Prunable;

@@ -33,6 +33,11 @@ class GuestRepository implements GuestRepositoryInterface
         return Guest::where('phone', $phone)->first();
     }
 
+    public function findByPhoneAndEmail(string $phone, string $email): ?Guest
+    {
+        return Guest::where('phone', $phone)->whereRaw('lower(email) = ?', [mb_strtolower(trim($email))])->first();
+    }
+
     public function hasReservations(Guest $guest): bool
     {
         return $guest->reservations()->exists();

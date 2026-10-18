@@ -8,5 +8,5 @@ Route::prefix('portal')->name('portal.')->middleware(['auth:sanctum', 'staff'])-
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
-    Route::get('search', [SearchController::class, 'index'])->middleware('throttle:60,1')->name('search');
+    Route::get('search', [SearchController::class, 'index'])->middleware('throttle:60,1,notifications.search')->name('search');
 });

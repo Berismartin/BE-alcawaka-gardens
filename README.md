@@ -42,13 +42,17 @@ All `/api/portal/...` routes need a staff bearer token plus the ability shown. A
 | PATCH | `/api/auth/me/preferences` | signed in (theme mode, accent, density) |
 | GET | `/api/facilities`, `/api/room-types` | public website |
 | GET | `/api/ical/{token}.ics` | OTAs (the token is the secret) |
+| GET `search`, POST (*idempotent*), POST `lookup` | `/api/booking/...` | website guests (rate-limited) |
+| GET `{reference}`, `{reference}/receipt` (PDF), POST `{reference}/pay`, `/request`, `/simulate` | `/api/booking/...` | the guest's booking key (`key`); `simulate` only while `PAYMENT_SIMULATOR` is on |
+| POST (*idempotent*), GET `{id}`, POST `{id}/pay`, `{id}/simulate` | `/api/facility-bookings/...` | website guests: day passes (priced per person) and event space (one price), paid online; the key proves ownership |
 | GET | `/api/portal/dashboard` | `dashboard.view` |
 | GET | `/api/portal/reports`, `/api/portal/reports/export` (CSV) | `reports.view` |
 | GET | `/api/portal/reservations`, `/{id}`, `/api/portal/calendar`, `/api/portal/availability` | `reservations.view` |
 | POST (*idempotent*), PATCH `{id}` | `/api/portal/reservations` | `reservations.manage` |
 | POST | `/api/portal/reservations/{id}/check-in`, `/check-out` (*idempotent*), `/cancel`, `/no-show` | `reservations.manage` |
 | POST, DELETE `{chargeId}` | `/api/portal/reservations/{id}/charges` (folio) | `reservations.manage` |
-| POST | `/api/portal/reservations/{id}/receipt` (email) | `reservations.manage` |
+| POST | `/api/portal/reservations/{id}/receipt` (email, PDF attached) | `reservations.manage` |
+| GET | `/api/portal/reservations/{id}/receipt.pdf` (an invoice while money is due) | `reservations.view` |
 | POST (*idempotent*) | `/api/portal/reservations/{id}/payments` | `payments.record` |
 | GET | `/api/portal/payments`, `/summary`, `/export` (CSV) | `payments.view` |
 | PATCH | `/api/portal/payments/{id}/settle` (approve or fail a pending payment) | `payments.record` |
@@ -58,7 +62,8 @@ All `/api/portal/...` routes need a staff bearer token plus the ability shown. A
 | GET | `/api/portal/room-types`, `/api/portal/rooms`, `/api/portal/seasonal-discounts` | `rooms.view` |
 | POST, PATCH, DELETE | `/api/portal/room-types`, `/api/portal/rooms` | `rooms.manage` |
 | POST, PUT, DELETE | `/api/portal/seasonal-discounts` | `rates.manage` |
-| PATCH | `/api/portal/rooms/{id}/status` | `housekeeping.manage` |
+| PATCH | `/api/portal/rooms/{id}/status` | `housekeeping.manage` (closing a room logs a maintenance issue; reopening it marks it fixed) |
+| GET, POST, POST `{id}/resolve` | `/api/portal/maintenance-issues` | `housekeeping.view` / `maintenance.report` / `housekeeping.manage` |
 | GET (paginated), GET `{id}` | `/api/portal/facilities` | `facilities.view` |
 | POST, PATCH `{id}`, DELETE `{id}` | `/api/portal/facilities` | `facilities.manage` |
 | GET | `/api/portal/facility-bookings`, `/summary` | `facilities.view` |
@@ -76,6 +81,7 @@ All `/api/portal/...` routes need a staff bearer token plus the ability shown. A
 | GET, PUT | `/api/portal/content/site` (website page text) | `content.manage` |
 | GET, POST, PATCH `{id}`, DELETE `{id}` | `/api/portal/content` (`filter[type]=event_type\|event\|gallery\|testimonial\|faq`) | `content.manage` |
 | GET, PATCH `{id}` | `/api/portal/enquiries` | `enquiries.view` / `enquiries.manage` |
+| POST | `/api/portal/enquiries/{id}/apply` (a guest's date change or cancellation: done in one click, guest emailed) | `reservations.manage` |
 | GET `staff`, POST `login` | `/api/pos/...` | a registered POS terminal (`X-Terminal-Key` header); PIN sign-in locks after 5 wrong tries |
 | PATCH | `/api/auth/me/pin` | signed-in staff (with their password) |
 | GET, POST, DELETE `{id}` | `/api/portal/pos/terminals` | `pos.manage` (managers) |
@@ -88,7 +94,15 @@ Run `php artisan schedule:work` locally (cron `schedule:run` in production):
 - every 15 minutes: OTA calendar feeds are synced (`channels`)
 - daily: old idempotency keys are pruned
 
-Mail (invitations, password resets, receipts) uses `MAIL_MAILER=log` locally; links point at `FRONTEND_URL`.
+Mail (invitations, password resets, booking confirmations, receipts) goes through Resend: set `RESEND_API_KEY` and a `MAIL_FROM_ADDRESS` on a domain verified in Resend. Use `MAIL_MAILER=log` to write emails to `storage/logs/laravel.log` instead. Links in emails point at `FRONTEND_URL`. Tests never send real mail.
+
+## Online payments (simulated for now)
+
+Website bookings hold their room for `PAYMENT_HOLD_MINUTES` (10) as *pending payment* and create a pending
+MTN, Airtel, card or Pesapal payment. No gateway is connected yet: with `PAYMENT_SIMULATOR=true` (the default
+outside production) the booking page shows a test panel that approves or declines it, which confirms the
+booking and emails the guest. Set `PAYMENT_SIMULATOR=false` in production; the gateway webhook replaces the
+simulator by settling the pending payment the same way.
 
 See [docs/api-conventions.md](docs/api-conventions.md) for pagination, errors, uploads and idempotency, and
 [docs/development-plan.md](docs/development-plan.md) for the roadmap.
