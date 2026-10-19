@@ -23,7 +23,7 @@ trait AppliesListQuery
             $term = '%'.$list->search.'%';
             $query->where(function (Builder $q) use ($searchColumns, $term) {
                 foreach ($searchColumns as $column) {
-                    $q->orWhere($column, 'like', $term);
+                    $q->orWhereLike($column, $term); // case-insensitive on SQLite and Postgres (ilike)
                 }
             });
         }

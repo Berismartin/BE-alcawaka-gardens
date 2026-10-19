@@ -48,7 +48,7 @@ class ReservationRepository implements ReservationRepositoryInterface
             $term = $query->search;
             $number = (int) preg_replace('/\D/', '', $term);
             $base->where(fn (Builder $q) => $q
-                ->whereHas('guest', fn ($g) => $g->where('full_name', 'like', "%{$term}%")->orWhere('phone', 'like', "%{$term}%"))
+                ->whereHas('guest', fn ($g) => $g->whereLike('full_name', "%{$term}%")->orWhereLike('phone', "%{$term}%"))
                 ->when($number > 0, fn ($w) => $w->orWhere('number', $number)));
             $query = new ListQuery($query->page, $query->perPage, null, $query->sort, $query->filters, $query->from, $query->to);
         }
@@ -173,7 +173,7 @@ class ReservationRepository implements ReservationRepositoryInterface
 
         return Reservation::with(self::ROW)
             ->where(fn (Builder $q) => $q
-                ->whereHas('guest', fn ($g) => $g->where('full_name', 'like', "%{$term}%"))
+                ->whereHas('guest', fn ($g) => $g->whereLike('full_name', "%{$term}%"))
                 ->when($number > 0, fn ($w) => $w->orWhere('number', $number)))
             ->latest('check_in')
             ->limit($limit)

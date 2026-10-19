@@ -4,7 +4,6 @@ namespace App\Http\Middleware;
 
 use App\Models\IdempotencyKey;
 use Closure;
-use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -34,10 +33,15 @@ class Idempotent
         $scope = $request->user() ? 'user:'.$request->user()->id : 'guest';
         $fingerprint = hash('sha256', $request->method().'|'.$request->path().'|'.$request->getContent());
 
-        try {
-            $record = IdempotencyKey::create(['user_id' => $request->user()?->id, 'scope' => $scope, 'key' => $key, 'fingerprint' => $fingerprint]);
-        } catch (UniqueConstraintViolationException) {
-            $existing = IdempotencyKey::where('scope', $scope)->where('key', $key)->first();
+        // "Insert unless taken" never raises, so it is safe inside a Postgres transaction
+        // (catching a unique violation there would abort the whole transaction).
+        $claimed = IdempotencyKey::query()->insertOrIgnore([
+            'user_id' => $request->user()?->id, 'scope' => $scope, 'key' => $key, 'fingerprint' => $fingerprint,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $record = IdempotencyKey::where('scope', $scope)->where('key', $key)->first();
+        if (! $claimed) {
+            $existing = $record;
 
             return match (true) {
                 $existing === null => $this->error('Please try again.', 409),

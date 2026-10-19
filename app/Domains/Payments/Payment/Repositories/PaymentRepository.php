@@ -34,9 +34,9 @@ class PaymentRepository implements PaymentRepositoryInterface
             $term = $query->search;
             $number = (int) preg_replace('/\D/', '', $term);
             $base->where(fn (Builder $q) => $q
-                ->where('reference', 'like', "%{$term}%")
-                ->orWhereHas('reservation.guest', fn ($g) => $g->where('full_name', 'like', "%{$term}%"))
-                ->orWhereHas('facilityBooking', fn ($f) => $f->where('guest_name', 'like', "%{$term}%"))
+                ->whereLike('reference', "%{$term}%")
+                ->orWhereHas('reservation.guest', fn ($g) => $g->whereLike('full_name', "%{$term}%"))
+                ->orWhereHas('facilityBooking', fn ($f) => $f->whereLike('guest_name', "%{$term}%"))
                 ->when($number > 0, fn ($w) => $w->orWhereHas('reservation', fn ($r) => $r->where('number', $number))));
             $query = new ListQuery($query->page, $query->perPage, null, $query->sort, $query->filters, $query->from, $query->to);
         }

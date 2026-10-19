@@ -106,3 +106,31 @@ simulator by settling the pending payment the same way.
 
 See [docs/api-conventions.md](docs/api-conventions.md) for pagination, errors, uploads and idempotency, and
 [docs/development-plan.md](docs/development-plan.md) for the roadmap.
+
+## Deploying (shared VM with WiFi billing and Campus 360)
+
+The API runs in Docker on the VM; the website, staff portal and POS (`FE-alcawaka-gardens`) are hosted
+elsewhere (e.g. Vercel, with `NUXT_PUBLIC_API_BASE=https://api.<your-domain>/api`).
+
+- **Ports:** none published. The WiFi billing Caddy (`beris-caddy`) already owns 80/443 and proxies
+  `api.<your-domain>` to `alcawaka-api:8080` over its Docker network. Other ports in use on that VM
+  (WiFi billing: 8043, 8843, 29810–29816 for Omada, 1812–1813/udp for RADIUS) are untouched.
+- **Containers:** `alcawaka-api` (Nginx + PHP-FPM), `alcawaka-scheduler`, `alcawaka-postgres`, all prefixed so
+  nothing collides with `beris-*` or `campus360-*`. Own database and volumes (`alcawaka_postgres-data`,
+  `alcawaka_storage` for photos and ID documents).
+
+```sh
+# on the VM
+git clone <repo> /apps/be-alcawaka && cd /apps/be-alcawaka
+cp .env.production.example .env                      # fill in every <...>; PROXY_NETWORK from: docker network ls | grep beris
+docker compose build
+docker run --rm alcawaka-api:latest php artisan key:generate --show   # paste into APP_KEY
+docker compose up -d
+docker compose exec alcawaka-api php artisan db:seed --force
+docker compose exec -it alcawaka-api php artisan staff:create-manager you@example.com "Your Name"
+# Add docker/caddy/alcawaka.caddy (real domain) to /apps/wifibilling/docker/caddy/Caddyfile, then:
+docker exec beris-caddy caddy reload --config /etc/caddy/Caddyfile
+```
+
+Updating: `git pull && docker compose up -d --build` (migrations run on start). Backups: `docker exec alcawaka-postgres
+pg_dump -U alcawaka alcawaka > alcawaka-$(date +%F).sql`, plus the `alcawaka_storage` volume.
