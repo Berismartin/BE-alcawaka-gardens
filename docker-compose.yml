@@ -23,7 +23,7 @@ name: alcawaka
 x-api: &api
   build: .
   image: alcawaka-api:latest
-  env_file: .env
+  env_file: ${APP_ENV_FILE:-.env}
   restart: unless-stopped
   networks: [alcawaka]
 
