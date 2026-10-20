@@ -16,7 +16,7 @@ class PreferencesTest extends TestCase
         Sanctum::actingAs(User::factory()->create());
 
         $this->getJson('/api/auth/me')
-            ->assertJsonPath('data.preferences', ['mode' => 'system', 'accent' => 'forest', 'sidebar_collapsed' => false, 'table_density' => 'comfortable'])
+            ->assertJsonPath('data.preferences', ['mode' => 'system', 'accent' => 'forest', 'sidebar_collapsed' => false, 'table_density' => 'comfortable', 'tours_off' => false, 'tours_seen' => []])
             ->assertJsonPath('data.permissions', []);
 
         $this->patchJson('/api/auth/me/preferences', ['accent' => 'ocean'])->assertOk();
@@ -30,5 +30,11 @@ class PreferencesTest extends TestCase
         Sanctum::actingAs(User::factory()->create());
 
         $this->patchJson('/api/auth/me/preferences', ['accent' => 'neon'])->assertUnprocessable();
+
+        // Guided tours: remembered per account; anything that isn't a tour name is refused.
+        $this->patchJson('/api/auth/me/preferences', ['tours_seen' => ['welcome', 'portal-calendar']])->assertOk()
+            ->assertJsonPath('data.tours_seen', ['welcome', 'portal-calendar'])->assertJsonPath('data.tours_off', false);
+        $this->patchJson('/api/auth/me/preferences', ['tours_off' => true])->assertOk()->assertJsonPath('data.tours_seen.1', 'portal-calendar');
+        $this->patchJson('/api/auth/me/preferences', ['tours_seen' => ['<script>']])->assertUnprocessable();
     }
 }

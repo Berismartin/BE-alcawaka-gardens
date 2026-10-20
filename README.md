@@ -154,6 +154,9 @@ docker compose exec alcawaka-api php artisan db:seed --force
 docker compose exec -it alcawaka-api php artisan staff:create-manager you@example.com "Your Name"
 # Add docker/caddy/alcawaka.caddy (real domain) to /apps/wifibilling/docker/caddy/Caddyfile, then:
 docker exec beris-caddy caddy reload --config /etc/caddy/Caddyfile
+# Pesapal (once https://api.<your-domain> answers): register the IPN, paste the id into PESAPAL_IPN_ID, restart
+docker compose exec alcawaka-api php artisan payments:pesapal-register-ipn
+docker compose up -d
 ```
 
 Updating: `git pull && docker compose up -d --build` (migrations run on start). Backups: `docker exec alcawaka-postgres

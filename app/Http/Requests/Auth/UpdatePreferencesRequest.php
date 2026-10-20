@@ -15,6 +15,9 @@ class UpdatePreferencesRequest extends FormRequest
             'accent' => ['sometimes', Rule::in(PreferencesDTO::ACCENTS)],
             'sidebar_collapsed' => ['sometimes', 'boolean'],
             'table_density' => ['sometimes', Rule::in(PreferencesDTO::DENSITIES)],
+            'tours_off' => ['sometimes', 'boolean'],
+            'tours_seen' => ['sometimes', 'array', 'max:80'],
+            'tours_seen.*' => ['string', 'max:60', 'regex:/^[a-z0-9-]+$/'],
         ];
     }
 }

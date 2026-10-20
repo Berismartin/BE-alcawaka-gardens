@@ -19,6 +19,8 @@ final readonly class CreateFacilityBookingDTO
         public ?int $amountUgx = null,
         public ?PaymentMethod $paymentMethod = null,
         public ?string $notes = null,
+        /** Hotel-local "Y-m-d H:i"; null = a single time slot */
+        public ?string $endsAt = null,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -35,6 +37,7 @@ final readonly class CreateFacilityBookingDTO
             amountUgx: isset($data['amount_ugx']) ? (int) $data['amount_ugx'] : null,
             paymentMethod: isset($data['payment_method']) ? PaymentMethod::from($data['payment_method']) : null,
             notes: $data['notes'] ?? null,
+            endsAt: $data['ends_at'] ?? null,
         );
     }
 }

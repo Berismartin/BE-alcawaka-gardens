@@ -7,6 +7,7 @@ use App\Actions\Facilities\FacilityBooking\CreateFacilityBookingAction;
 use App\Actions\Facilities\FacilityBooking\FacilityBookingSummaryAction;
 use App\Actions\Facilities\FacilityBooking\PaginateFacilityBookingsAction;
 use App\Actions\Facilities\FacilityBooking\PayFacilityBookingAction;
+use App\Actions\Facilities\FacilityBooking\ShowFacilityBookingAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Facilities\FacilityBooking\ListFacilityBookingsRequest;
 use App\Http\Requests\Facilities\FacilityBooking\StoreFacilityBookingRequest;
@@ -25,6 +26,11 @@ class FacilityBookingController extends Controller
     public function summary(FacilityBookingSummaryAction $action): JsonResponse
     {
         return $this->respond($action->execute());
+    }
+
+    public function show(string $id, ShowFacilityBookingAction $action): JsonResponse
+    {
+        return $this->respond($action->execute($id));
     }
 
     public function store(StoreFacilityBookingRequest $request, CreateFacilityBookingAction $action): JsonResponse

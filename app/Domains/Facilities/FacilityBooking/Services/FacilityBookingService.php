@@ -68,6 +68,10 @@ class FacilityBookingService
         if ($startsAt->lt(now()->subHour())) {
             throw new EntityValidationException("The time can't be in the past.", ['starts_at' => ["The time can't be in the past."]]);
         }
+        $endsAt = $dto->endsAt ? Carbon::parse($dto->endsAt, 'Africa/Kampala')->utc() : null;
+        if ($endsAt && $endsAt->lte($startsAt)) {
+            throw new EntityValidationException('The end must be after the start.', ['ends_at' => ['The end must be after the start.']]);
+        }
 
         $reservation = null;
         if (in_array($dto->chargeMode, [ChargeMode::Included, ChargeMode::Folio], true)) {
@@ -90,13 +94,14 @@ class FacilityBookingService
             throw new EntityValidationException('Choose how the guest paid.', ['payment_method' => ['Choose how the guest paid.']]);
         }
 
-        $id = DB::transaction(function () use ($dto, $facility, $reservation, $startsAt, $amount) {
+        $id = DB::transaction(function () use ($dto, $facility, $reservation, $startsAt, $endsAt, $amount) {
             $booking = $this->repository->create([
                 'facility_id' => $facility->id,
                 'reservation_id' => $reservation?->id,
                 'guest_name' => $reservation ? $reservation->guest->full_name.' · Room '.$reservation->room->number : $dto->guestName,
                 'guest_phone' => $reservation ? $reservation->guest->phone : $dto->guestPhone,
                 'starts_at' => $startsAt,
+                'ends_at' => $endsAt,
                 'party_size' => $dto->partySize,
                 'charge_mode' => $dto->chargeMode->value,
                 'amount_ugx' => $amount,

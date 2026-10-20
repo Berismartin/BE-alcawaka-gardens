@@ -20,6 +20,7 @@ Route::prefix('portal/content')->name('portal.content.')->middleware(['auth:sanc
 
 Route::prefix('portal/enquiries')->name('portal.enquiries.')->middleware('auth:sanctum')->group(function () {
     Route::get('/', [EnquiryController::class, 'index'])->middleware('permission:enquiries.view')->name('index');
+    Route::get('/{id}', [EnquiryController::class, 'show'])->middleware('permission:enquiries.view')->name('show');
     Route::patch('/{id}', [EnquiryController::class, 'update'])->middleware('permission:enquiries.manage')->name('update');
     Route::post('/{id}/apply', [EnquiryController::class, 'apply'])->middleware('permission:reservations.manage')->name('apply');
 });

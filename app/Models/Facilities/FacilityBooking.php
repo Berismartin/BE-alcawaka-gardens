@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'facility_id', 'reservation_id', 'guest_name', 'guest_phone', 'guest_email', 'starts_at', 'party_size',
+    'facility_id', 'reservation_id', 'guest_name', 'guest_phone', 'guest_email', 'starts_at', 'ends_at', 'party_size',
     'charge_mode', 'amount_ugx', 'status', 'notes', 'created_by', 'guest_key', 'hold_expires_at',
 ])]
 #[Hidden(['guest_key'])]
@@ -53,6 +53,7 @@ class FacilityBooking extends Model
     {
         return [
             'starts_at' => 'datetime',
+            'ends_at' => 'datetime',
             'hold_expires_at' => 'datetime',
             'guest_key' => 'encrypted',
             'party_size' => 'integer',

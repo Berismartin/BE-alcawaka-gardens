@@ -3,6 +3,7 @@
 namespace App\Domains\Payments\Payment\Services;
 
 use App\Domains\Audit\AuditLog\Services\AuditLogger;
+use App\Domains\Facilities\FacilityBooking\Enums\FacilityBookingStatus;
 use App\Domains\Payments\Gateway\DTOs\CheckoutRequest;
 use App\Domains\Payments\Gateway\DTOs\GatewayStatus;
 use App\Domains\Payments\Gateway\Enums\GatewayState;
@@ -10,9 +11,13 @@ use App\Domains\Payments\Gateway\PaymentGateway;
 use App\Domains\Payments\Payment\Enums\PaymentMethod;
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
 use App\Domains\Payments\Payment\Repositories\PaymentRepositoryInterface;
+use App\Domains\Reservations\Reservation\Enums\ReservationStatus;
 use App\Exceptions\EntityNotFoundException;
+use App\Exceptions\EntityValidationException;
 use App\Exceptions\GatewayException;
+use App\Models\Facilities\FacilityBooking;
 use App\Models\Payments\Payment;
+use App\Models\Reservations\Reservation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -40,14 +45,14 @@ class OnlinePaymentService
      * transaction has committed. If the gateway is down the payment is marked failed (nothing was
      * charged) and the guest can try again or choose pay on arrival.
      */
-    public function checkout(Payment $payment): Payment
+    public function checkout(Payment $payment, string $returnPath = '/payment/return'): Payment
     {
         $payment->load(['reservation.guest', 'facilityBooking.facility']); // full rows: the repository loads them trimmed
         if ($payment->status !== PaymentStatus::Pending || $payment->viaGateway()) {
             return $payment;
         }
         try {
-            $session = $this->gateway->createCheckout($this->checkoutRequest($payment));
+            $session = $this->gateway->createCheckout($this->checkoutRequest($payment, $returnPath));
         } catch (GatewayException $e) {
             report($e);
 
@@ -62,6 +67,29 @@ class OnlinePaymentService
             'gateway_tracking_id' => $session->trackingId,
             'gateway_redirect_url' => $session->redirectUrl,
         ]);
+    }
+
+    /**
+     * Staff take an online payment at the desk or POS, or a guest pays a payment link: one pending payment for
+     * the amount (all that is due when null), then the hosted page. Earlier requests still waiting are dropped,
+     * so a retry never charges twice. Where Pesapal sends the browser afterwards is $returnPath on the website.
+     */
+    public function request(Reservation|FacilityBooking $owner, PaymentMethod $method, ?int $amountUgx, string $returnPath): Payment
+    {
+        $this->assertPayable($owner);
+        $payment = DB::transaction(fn () => $this->payments->startOnlinePayment($owner, $method, $amountUgx));
+
+        return $this->checkout($payment, $returnPath);
+    }
+
+    private function assertPayable(Reservation|FacilityBooking $owner): void
+    {
+        $closed = $owner instanceof Reservation
+            ? in_array($owner->status, [ReservationStatus::Cancelled, ReservationStatus::Expired, ReservationStatus::NoShow], true)
+            : $owner->status === FacilityBookingStatus::Cancelled;
+        if ($closed) {
+            throw new EntityValidationException('This booking is closed, so it can’t take payments.');
+        }
     }
 
     /** IPN, the guest's return from Pesapal, or "Check with Pesapal": ask the gateway and apply the answer. */
@@ -258,13 +286,13 @@ class OnlinePaymentService
         };
     }
 
-    private function checkoutRequest(Payment $payment): CheckoutRequest
+    private function checkoutRequest(Payment $payment, string $returnPath): CheckoutRequest
     {
         $reservation = $payment->reservation;
         $booking = $payment->facilityBooking;
         $name = trim($reservation?->guest?->full_name ?? $booking?->guest_name ?? 'Guest');
         [$first, $last] = array_pad(explode(' ', $name, 2), 2, '');
-        $return = rtrim(config('app.frontend_url'), '/').'/payment/return';
+        $return = rtrim(config('app.frontend_url'), '/').$returnPath;
 
         return new CheckoutRequest(
             merchantReference: $payment->id,

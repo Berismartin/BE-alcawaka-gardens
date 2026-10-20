@@ -27,6 +27,8 @@ class PaymentResource extends JsonResource
             'refund_of_id' => $this->refund_of_id,
             'received_at' => $this->received_at?->toISOString(),
             'gateway' => $this->gateway,
+            // Pesapal's page while the payment can still be made there (staff open it for the guest).
+            'redirect_url' => $this->status === PaymentStatus::Pending ? $this->gateway_redirect_url : null,
             'gateway_details' => $this->gateway ? [
                 'tracking_id' => $this->gateway_tracking_id,
                 'confirmation_code' => $this->gateway_confirmation_code,

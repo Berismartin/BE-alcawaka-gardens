@@ -11,6 +11,8 @@ final readonly class SeasonalDiscountDTO
         public string $endsOn,
         public int $percent,
         public ?string $roomTypeId = null,
+        /** null = not sent: keep what it was (on, for a new discount) */
+        public ?bool $isActive = null,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -22,6 +24,7 @@ final readonly class SeasonalDiscountDTO
             endsOn: $data['ends_on'],
             percent: (int) $data['percent'],
             roomTypeId: $data['room_type_id'] ?? null,
+            isActive: isset($data['is_active']) ? (bool) $data['is_active'] : null,
         );
     }
 
@@ -34,6 +37,7 @@ final readonly class SeasonalDiscountDTO
             'ends_on' => $this->endsOn,
             'percent' => $this->percent,
             'room_type_id' => $this->roomTypeId,
+            ...($this->isActive === null ? [] : ['is_active' => $this->isActive]),
         ];
     }
 }

@@ -1,6 +1,8 @@
 <?php
 
-$gateway = env('PAYMENT_GATEWAY', 'simulator'); // simulator | pesapal
+// simulator | pesapal. Production never falls back to the simulator (guests could approve their own payments).
+$production = env('APP_ENV') === 'production';
+$gateway = env('PAYMENT_GATEWAY', $production ? 'pesapal' : 'simulator');
 
 return [
     'gateway' => $gateway,
@@ -9,7 +11,7 @@ return [
     'hold_minutes' => (int) env('PAYMENT_HOLD_MINUTES', $gateway === 'pesapal' ? 20 : 10),
 
     // Local development and tests: the booking page's test panel approves or declines payments.
-    'simulator' => $gateway === 'simulator',
+    'simulator' => $gateway === 'simulator' && ! $production,
 
     // A pending online payment nobody answers for this long is marked failed by `payments:reconcile`.
     'abandon_after_hours' => (int) env('PAYMENT_ABANDON_AFTER_HOURS', 72),

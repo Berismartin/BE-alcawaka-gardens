@@ -14,6 +14,7 @@ class StoreFacilityBookingRequest extends FormRequest
         return [
             'facility_id' => ['required', 'uuid', 'exists:facilities,id'],
             'starts_at' => ['required', 'date_format:Y-m-d H:i'],
+            'ends_at' => ['nullable', 'date_format:Y-m-d H:i', 'after:starts_at'],
             'party_size' => ['required', 'integer', 'min:1', 'max:10000'],
             'charge_mode' => ['required', Rule::enum(ChargeMode::class)],
             'reservation_id' => ['nullable', 'uuid', 'exists:reservations,id'],

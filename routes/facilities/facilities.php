@@ -24,6 +24,7 @@ Route::prefix('portal/facility-bookings')->name('portal.facility-bookings.')->mi
     Route::middleware('permission:facilities.view')->group(function () {
         Route::get('/', [FacilityBookingController::class, 'index'])->name('index');
         Route::get('/summary', [FacilityBookingController::class, 'summary'])->name('summary');
+        Route::get('/{id}', [FacilityBookingController::class, 'show'])->name('show');
     });
     Route::middleware('permission:facilities.book')->group(function () {
         Route::post('/', [FacilityBookingController::class, 'store'])->middleware('idempotent:required')->name('store');

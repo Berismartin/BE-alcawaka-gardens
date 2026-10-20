@@ -44,7 +44,7 @@ class SeasonalDiscountService
     public function update(string $id, SeasonalDiscountDTO $dto): SeasonalDiscount
     {
         $discount = $this->find($id);
-        $this->assertNoOverlap($dto, $discount->id);
+        $this->assertNoOverlap($dto, $discount->id, $dto->isActive ?? $discount->is_active);
         $before = $discount->attributesToArray();
 
         return DB::transaction(function () use ($discount, $dto, $before) {
@@ -64,9 +64,12 @@ class SeasonalDiscountService
         });
     }
 
-    /** Two discounts on the same night for the same room would make the price ambiguous. */
-    private function assertNoOverlap(SeasonalDiscountDTO $dto, ?string $exceptId = null): void
+    /** Two active discounts on the same night for the same room would make the price ambiguous. */
+    private function assertNoOverlap(SeasonalDiscountDTO $dto, ?string $exceptId = null, ?bool $active = null): void
     {
+        if (! ($active ?? $dto->isActive ?? true)) {
+            return; // switched off: can share dates with anything until it is switched back on
+        }
         $clash = $this->repository->overlapping($dto->startsOn, $dto->endsOn, $dto->roomTypeId, $exceptId)->first();
         if ($clash) {
             $message = "These dates overlap “{$clash->name}” ({$clash->starts_on->format('j M')} – {$clash->ends_on->format('j M Y')}).";

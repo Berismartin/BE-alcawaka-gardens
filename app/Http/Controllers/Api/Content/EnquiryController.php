@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Content;
 use App\Actions\Booking\ApplyGuestRequestAction;
 use App\Actions\Content\Enquiry\CreateEnquiryAction;
 use App\Actions\Content\Enquiry\PaginateEnquiriesAction;
+use App\Actions\Content\Enquiry\ShowEnquiryAction;
 use App\Actions\Content\Enquiry\UpdateEnquiryAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Content\Enquiry\ListEnquiriesRequest;
@@ -27,6 +28,11 @@ class EnquiryController extends Controller
     public function index(ListEnquiriesRequest $request, PaginateEnquiriesAction $action): JsonResponse
     {
         return $this->respondPage($action->execute($request->toListQuery()), EnquiryResource::class);
+    }
+
+    public function show(string $id, ShowEnquiryAction $action): JsonResponse
+    {
+        return $this->respond($action->execute($id));
     }
 
     public function update(UpdateEnquiryRequest $request, string $id, UpdateEnquiryAction $action): JsonResponse

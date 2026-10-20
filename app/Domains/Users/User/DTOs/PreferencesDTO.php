@@ -16,6 +16,9 @@ final readonly class PreferencesDTO
         'accent' => 'forest',
         'sidebar_collapsed' => false,
         'table_density' => 'comfortable',
+        // Guided tours in the portal: the ones this person has finished or skipped, or all switched off.
+        'tours_off' => false,
+        'tours_seen' => [],
     ];
 
     /** @param array<string, mixed> $values */

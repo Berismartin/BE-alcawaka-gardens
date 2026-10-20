@@ -31,6 +31,11 @@ class EnquiryResource extends JsonResource
             ] : null,
             'status' => $this->status->value,
             'notes' => $this->notes,
+            // Attended to = a staff member has taken it out of "new" (called, booked or closed it).
+            'attended' => $this->attended_at ? [
+                'at' => $this->attended_at->toISOString(),
+                'by' => $this->whenLoaded('attendant', fn () => $this->attendant?->name),
+            ] : null,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

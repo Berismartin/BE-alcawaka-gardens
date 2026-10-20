@@ -101,20 +101,29 @@ class PaymentService
      * what is due. Any earlier request still waiting is dropped, so "resend" or "use another method"
      * never double-charges.
      */
-    public function startOnlinePayment(Reservation|FacilityBooking $owner, PaymentMethod $method): Payment
+    public function startOnlinePayment(Reservation|FacilityBooking $owner, PaymentMethod $method, ?int $amountUgx = null): Payment
     {
         if (! in_array($method, [PaymentMethod::MtnMomo, PaymentMethod::AirtelMoney, PaymentMethod::Card], true)) {
             throw new EntityValidationException('Choose mobile money or card.', ['payment_method' => ['Choose mobile money or card.']]);
         }
         $isRoom = $owner instanceof Reservation;
         $owner->load($isRoom ? ['charges', 'payments'] : ['payments']);
+        $due = $isRoom ? $owner->balance() : $owner->amount_ugx - $owner->paidAmount();
+        // Staff may take part of it (a deposit); never more than is owed.
+        if ($amountUgx !== null && ($amountUgx < 1 || $amountUgx > $due)) {
+            $message = $due > 0 ? 'Enter an amount up to the '.self::ugx($due).' due.' : 'Nothing is due.';
+            throw new EntityValidationException($message, ['amount_ugx' => [$message]]);
+        }
+        if ($due < 1) {
+            throw new EntityValidationException('Nothing is due.', ['amount_ugx' => ['Nothing is due.']]);
+        }
         $this->failPending($owner);
 
         $payment = $this->repository->create([
             $isRoom ? 'reservation_id' : 'facility_booking_id' => $owner->id,
             'kind' => 'payment',
             'method' => $method->value,
-            'amount_ugx' => $isRoom ? $owner->balance() : $owner->amount_ugx - $owner->paidAmount(),
+            'amount_ugx' => $amountUgx ?? $due,
             'status' => PaymentStatus::Pending->value,
             'reference' => 'WEB-'.strtoupper(Str::random(8)),
             'received_at' => now(),
@@ -320,16 +329,24 @@ class PaymentService
         }
     }
 
-    /** A website facility booking is confirmed once paid in full; the guest gets the confirmation. */
+    /**
+     * A facility booking waiting for its money is confirmed once paid in full: a website booking (the guest gets
+     * the confirmation) or a desk "pay later" booking settled through Pesapal or a payment link.
+     */
     private function confirmFacilityIfPaid(FacilityBooking $booking): void
     {
         $booking->refresh()->load(['payments', 'facility']);
-        if ($booking->status !== FacilityBookingStatus::PendingPayment || $booking->charge_mode !== ChargeMode::Online || $booking->paidAmount() < $booking->amount_ugx) {
+        if ($booking->status !== FacilityBookingStatus::PendingPayment
+            || ! in_array($booking->charge_mode, [ChargeMode::Online, ChargeMode::PayLater], true)
+            || $booking->paidAmount() < $booking->amount_ugx) {
             return;
         }
-        $booking->update(['status' => FacilityBookingStatus::Confirmed->value, 'hold_expires_at' => null]);
+        $website = $booking->charge_mode === ChargeMode::Online;
+        $booking->update(['status' => FacilityBookingStatus::Confirmed->value, 'hold_expires_at' => null, ...($website ? [] : ['charge_mode' => ChargeMode::Paid->value])]);
         $this->audit->record('facility_booking.paid', $booking, ['amount_ugx' => ['from' => null, 'to' => $booking->amount_ugx]]);
-        $this->announceFacilityBooking($booking);
+        if ($website) {
+            $this->announceFacilityBooking($booking);
+        }
     }
 
     /** A website facility booking is in: staff are told, the guest gets the confirmation. A mail outage never undoes it. */

@@ -71,4 +71,20 @@ class FacilityBookingTest extends TestCase
         $this->actingAsRole(UserRole::Housekeeping);
         $this->getJson('/api/portal/facility-bookings')->assertForbidden();
     }
+
+    public function test_an_event_booking_can_run_from_one_day_and_time_to_another(): void
+    {
+        $garden = Facility::factory()->create(['name' => 'Gardens', 'access' => 'reservation', 'price_ugx' => 500000, 'capacity' => 300]);
+        $this->actingAsRole(UserRole::FrontDesk);
+        $start = now('Africa/Kampala')->addDays(3)->setTime(14, 0);
+        $book = fn (array $extra) => $this->idempotent()->postJson('/api/portal/facility-bookings', [
+            'facility_id' => $garden->id, 'starts_at' => $start->format('Y-m-d H:i'), 'party_size' => 137, 'charge_mode' => 'pay_later', 'guest_name' => 'Nakato wedding', ...$extra,
+        ]);
+
+        $book(['ends_at' => $start->copy()->subHour()->format('Y-m-d H:i')])->assertUnprocessable()->assertJsonValidationErrors('ends_at');
+        $book(['ends_at' => $start->copy()->addHours(12)->format('Y-m-d H:i')])->assertCreated()
+            ->assertJsonPath('data.party_size', 137)
+            ->assertJsonPath('data.ends_at', $start->copy()->addHours(12)->utc()->toISOString());
+        $book([])->assertCreated()->assertJsonPath('data.ends_at', null); // a single time slot, as before
+    }
 }

@@ -59,6 +59,25 @@ class ReservationTest extends TestCase
             ->assertOk()->assertJsonCount(0, 'data'); // room sleeps two
     }
 
+    public function test_a_switched_off_discount_is_kept_but_never_applied(): void
+    {
+        $this->actingAsRole();
+        $id = $this->postJson('/api/portal/seasonal-discounts', ['name' => 'Promo', 'starts_on' => $this->day(1), 'ends_on' => $this->day(1), 'percent' => 10])
+            ->assertCreated()->assertJsonPath('data.is_active', true)->json('data.id');
+        $promo = ['name' => 'Promo', 'starts_on' => $this->day(1), 'ends_on' => $this->day(1), 'percent' => 10];
+
+        $this->putJson("/api/portal/seasonal-discounts/{$id}", [...$promo, 'is_active' => false])->assertOk()->assertJsonPath('data.is_active', false);
+        $this->getJson('/api/portal/availability?check_in='.$this->day(0).'&check_out='.$this->day(2).'&adults=2')
+            ->assertJsonPath('data.0.total_ugx', 360000); // full price both nights
+        $this->putJson("/api/portal/seasonal-discounts/{$id}", [...$promo, 'percent' => 20])->assertOk()->assertJsonPath('data.is_active', false); // editing keeps it off
+
+        // While off it blocks nothing; switching back on is checked like a new one.
+        $this->postJson('/api/portal/seasonal-discounts', [...$promo, 'name' => 'Flash sale', 'percent' => 5])->assertCreated();
+        $this->putJson("/api/portal/seasonal-discounts/{$id}", [...$promo, 'is_active' => true])->assertUnprocessable()->assertJsonValidationErrors('starts_on');
+        $this->getJson('/api/portal/availability?check_in='.$this->day(0).'&check_out='.$this->day(2).'&adults=2')
+            ->assertJsonPath('data.0.nightly.1.rate_ugx', 171000); // the active 5% only
+    }
+
     public function test_walk_in_booking_with_payment_through_check_out(): void
     {
         $this->actingAsRole(UserRole::FrontDesk);

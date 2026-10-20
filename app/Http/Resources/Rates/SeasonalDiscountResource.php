@@ -18,6 +18,7 @@ class SeasonalDiscountResource extends JsonResource
             'ends_on' => $this->ends_on->toDateString(),
             'percent' => $this->percent,
             'room_type_id' => $this->room_type_id,
+            'is_active' => $this->is_active,
             'room_type' => $this->roomType ? ['id' => $this->roomType->id, 'name' => $this->roomType->name] : null,
         ];
     }

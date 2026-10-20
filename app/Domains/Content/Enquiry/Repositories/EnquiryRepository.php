@@ -13,12 +13,12 @@ class EnquiryRepository implements EnquiryRepositoryInterface
 
     public function paginate(ListQuery $query): LengthAwarePaginator
     {
-        return $this->paginateList(Enquiry::query()->with('reservation:id,number,status'), $query, ['name', 'phone', 'email', 'event_type', 'message']);
+        return $this->paginateList(Enquiry::query()->with(['reservation:id,number,status', 'attendant:id,name']), $query, ['name', 'phone', 'email', 'event_type', 'message']);
     }
 
     public function findById(string $id): ?Enquiry
     {
-        return Enquiry::find($id);
+        return Enquiry::with(['reservation:id,number,status', 'attendant:id,name'])->find($id);
     }
 
     public function create(array $data): Enquiry
@@ -30,6 +30,6 @@ class EnquiryRepository implements EnquiryRepositoryInterface
     {
         $enquiry->update($data);
 
-        return $enquiry->refresh();
+        return $enquiry->refresh()->load(['reservation:id,number,status', 'attendant:id,name']);
     }
 }

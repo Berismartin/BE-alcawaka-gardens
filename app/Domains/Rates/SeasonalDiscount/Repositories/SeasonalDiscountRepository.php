@@ -15,6 +15,7 @@ class SeasonalDiscountRepository implements SeasonalDiscountRepositoryInterface
     public function overlapping(string $from, string $to, ?string $roomTypeId, ?string $exceptId = null): Collection
     {
         return SeasonalDiscount::query()
+            ->where('is_active', true) // switched-off discounts neither price a night nor block another discount
             ->where('starts_on', '<=', $to)
             ->where('ends_on', '>=', $from)
             // An "all rooms" discount applies to every type, so it collides with all of them.
@@ -30,7 +31,7 @@ class SeasonalDiscountRepository implements SeasonalDiscountRepositoryInterface
 
     public function create(array $data): SeasonalDiscount
     {
-        return SeasonalDiscount::create($data)->load('roomType:id,name');
+        return SeasonalDiscount::create($data)->refresh()->load('roomType:id,name'); // refresh: database defaults such as is_active
     }
 
     public function update(SeasonalDiscount $discount, array $data): SeasonalDiscount

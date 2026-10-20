@@ -15,6 +15,7 @@ class SeasonalDiscountRequest extends FormRequest
             'ends_on' => ['required', 'date_format:Y-m-d', 'after_or_equal:starts_on'],
             'percent' => ['required', 'integer', 'min:1', 'max:90'],
             'room_type_id' => ['nullable', 'uuid', 'exists:room_types,id'],
+            'is_active' => ['sometimes', 'boolean'],
         ];
     }
 }

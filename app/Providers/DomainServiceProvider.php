@@ -24,6 +24,8 @@ use App\Domains\Payments\Gateway\Pesapal\PesapalGateway;
 use App\Domains\Payments\Gateway\Simulator\SimulatorGateway;
 use App\Domains\Payments\Payment\Repositories\PaymentRepository;
 use App\Domains\Payments\Payment\Repositories\PaymentRepositoryInterface;
+use App\Domains\Payments\PaymentLink\Repositories\PaymentLinkRepository;
+use App\Domains\Payments\PaymentLink\Repositories\PaymentLinkRepositoryInterface;
 use App\Domains\Pos\Terminal\Repositories\PosTerminalRepository;
 use App\Domains\Pos\Terminal\Repositories\PosTerminalRepositoryInterface;
 use App\Domains\Rates\SeasonalDiscount\Repositories\SeasonalDiscountRepository;
@@ -49,6 +51,7 @@ use App\Models\Facilities\Facility;
 use App\Models\Facilities\FacilityBooking;
 use App\Models\Guests\Guest;
 use App\Models\Payments\Payment;
+use App\Models\Payments\PaymentLink;
 use App\Models\Pos\PosTerminal;
 use App\Models\Reservations\Reservation;
 use App\Models\Rooms\Room;
@@ -86,6 +89,7 @@ class DomainServiceProvider extends ServiceProvider
         PosTerminalRepositoryInterface::class => PosTerminalRepository::class,
         ContentEntryRepositoryInterface::class => ContentEntryRepository::class,
         EnquiryRepositoryInterface::class => EnquiryRepository::class,
+        PaymentLinkRepositoryInterface::class => PaymentLinkRepository::class,
     ];
 
     /** @var list<string> */
@@ -140,6 +144,7 @@ class DomainServiceProvider extends ServiceProvider
             'pos_terminal' => PosTerminal::class,
             'content_entry' => ContentEntry::class,
             'enquiry' => Enquiry::class,
+            'payment_link' => PaymentLink::class,
         ]);
 
         Route::middleware('api')->prefix('api')->group(function () {

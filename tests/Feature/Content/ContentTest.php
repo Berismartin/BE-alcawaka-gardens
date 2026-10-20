@@ -3,8 +3,11 @@
 namespace Tests\Feature\Content;
 
 use App\Domains\Users\User\Enums\UserRole;
+use App\Mail\EnquiryReceivedMail;
+use App\Models\Settings\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -75,6 +78,36 @@ class ContentTest extends TestCase
 
         $this->actingAsRole(UserRole::Housekeeping);
         $this->getJson('/api/portal/enquiries')->assertForbidden();
+    }
+
+    public function test_new_enquiry_emails_the_hotel_and_staff_mark_it_attended(): void
+    {
+        Mail::fake();
+        $enquiry = ['name' => 'Aisha Nansubuga', 'phone' => '0772 123 456', 'email' => 'aisha@example.com', 'event_type' => 'Weddings', 'message' => 'Can we visit?'];
+
+        $this->postJson('/api/enquiries', $enquiry)->assertCreated(); // no hotel email in Settings yet: nothing sent, still saved
+        Mail::assertNothingSent();
+
+        Setting::create(['key' => 'email', 'value' => 'alcawakagardens@gmail.com']);
+        $this->postJson('/api/enquiries', $enquiry)->assertCreated();
+        Mail::assertSent(EnquiryReceivedMail::class, fn (EnquiryReceivedMail $m) => $m->hasTo('alcawakagardens@gmail.com')
+            && $m->hasReplyTo('aisha@example.com') && $m->hasSubject('Weddings enquiry from Aisha Nansubuga')
+            && str_ends_with($m->portalUrl, "/portal/enquiries/{$m->enquiry->id}"));
+
+        $desk = $this->actingAsRole(UserRole::FrontDesk);
+        $id = $this->getJson('/api/portal/enquiries')->json('data.0.id');
+        $this->getJson("/api/portal/enquiries/{$id}")->assertOk()->assertJsonPath('data.email', 'aisha@example.com')->assertJsonPath('data.attended', null);
+
+        $this->patchJson("/api/portal/enquiries/{$id}", ['status' => 'contacted'])->assertOk()
+            ->assertJsonPath('data.attended.by', $desk->name);
+        $first = $this->getJson("/api/portal/enquiries/{$id}")->json('data.attended.at');
+        $this->travel(1)->hours();
+        $this->patchJson("/api/portal/enquiries/{$id}", ['status' => 'booked'])->assertJsonPath('data.attended.at', $first); // first attended time is kept
+        $this->patchJson("/api/portal/enquiries/{$id}", ['status' => 'new'])->assertJsonPath('data.attended', null); // back to "not attended"
+
+        $this->getJson('/api/portal/enquiries/'.str_repeat('0', 8).'-0000-0000-0000-000000000000')->assertNotFound();
+        $this->actingAsRole(UserRole::Housekeeping);
+        $this->getJson("/api/portal/enquiries/{$id}")->assertForbidden();
     }
 
     public function test_replaced_and_deleted_photos_are_removed_from_storage(): void
