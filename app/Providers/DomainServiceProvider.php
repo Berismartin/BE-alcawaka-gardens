@@ -18,6 +18,10 @@ use App\Domains\Guests\Guest\Repositories\GuestRepository;
 use App\Domains\Guests\Guest\Repositories\GuestRepositoryInterface;
 use App\Domains\Media\Media\Repositories\MediaRepository;
 use App\Domains\Media\Media\Repositories\MediaRepositoryInterface;
+use App\Domains\Payments\Gateway\PaymentGateway;
+use App\Domains\Payments\Gateway\Pesapal\PesapalClient;
+use App\Domains\Payments\Gateway\Pesapal\PesapalGateway;
+use App\Domains\Payments\Gateway\Simulator\SimulatorGateway;
 use App\Domains\Payments\Payment\Repositories\PaymentRepository;
 use App\Domains\Payments\Payment\Repositories\PaymentRepositoryInterface;
 use App\Domains\Pos\Terminal\Repositories\PosTerminalRepository;
@@ -103,6 +107,19 @@ class DomainServiceProvider extends ServiceProvider
         'routes/pos/pos.php',
         'routes/content/content.php',
     ];
+
+    public function register(): void
+    {
+        // The one place that decides which payment provider is live (config/payments.php).
+        $this->app->bind(PesapalGateway::class, function () {
+            $c = config('payments.pesapal');
+
+            return new PesapalGateway(new PesapalClient($c['base_url'], $c['consumer_key'], $c['consumer_secret'], $c['timeout']), $c['ipn_id'], $c['currency'], $c['country']);
+        });
+        $this->app->bind(PaymentGateway::class, fn ($app) => config('payments.gateway') === 'pesapal'
+            ? $app->make(PesapalGateway::class)
+            : new SimulatorGateway);
+    }
 
     public function boot(): void
     {

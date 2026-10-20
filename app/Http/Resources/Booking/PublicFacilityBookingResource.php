@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Booking;
 
 use App\Domains\Facilities\FacilityBooking\Enums\ChargeMode;
+use App\Domains\Payments\Payment\Enums\PaymentStatus;
 use App\Models\Facilities\FacilityBooking;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -44,6 +45,9 @@ class PublicFacilityBookingResource extends JsonResource
                 'method_label' => $latest->method->label(),
                 'status' => $latest->status->value,
                 'amount_ugx' => $latest->amount_ugx,
+                'gateway' => $latest->gateway,
+                // Pesapal's hosted page, while the payment can still be made there
+                'redirect_url' => $latest->status === PaymentStatus::Pending ? $latest->gateway_redirect_url : null,
             ] : null,
             'simulator' => (bool) config('payments.simulator'),
         ];

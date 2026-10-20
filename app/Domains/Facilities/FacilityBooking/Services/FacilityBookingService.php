@@ -13,6 +13,7 @@ use App\Domains\Guests\Guest\ValueObjects\PhoneNumber;
 use App\Domains\Payments\Payment\DTOs\RecordPaymentDTO;
 use App\Domains\Payments\Payment\Enums\PaymentMethod;
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
+use App\Domains\Payments\Payment\Services\OnlinePaymentService;
 use App\Domains\Payments\Payment\Services\PaymentService;
 use App\Domains\Reservations\Reservation\Enums\ChargeCategory;
 use App\Domains\Reservations\Reservation\Enums\ReservationStatus;
@@ -39,6 +40,7 @@ class FacilityBookingService
         private ReservationService $reservations,
         private ReservationRepositoryInterface $reservationRepository,
         private PaymentService $payments,
+        private OnlinePaymentService $online,
         private AuditLogger $audit,
     ) {}
 
@@ -188,7 +190,8 @@ class FacilityBookingService
         $key = Str::random(40);
         $payOnArrival = $dto->paymentMethod === PaymentMethod::Cash;
 
-        $id = DB::transaction(function () use ($dto, $facility, $startsAt, $key, $payOnArrival) {
+        $payment = null;
+        $id = DB::transaction(function () use ($dto, $facility, $startsAt, $key, $payOnArrival, &$payment) {
             $booking = $this->repository->create([
                 'facility_id' => $facility->id,
                 'guest_name' => $dto->fullName,
@@ -205,7 +208,7 @@ class FacilityBookingService
                 'hold_expires_at' => $payOnArrival ? null : now()->addMinutes(config('payments.hold_minutes')),
             ]);
             if (! $payOnArrival) {
-                $this->payments->startOnlinePayment($booking, $dto->paymentMethod);
+                $payment = $this->payments->startOnlinePayment($booking, $dto->paymentMethod);
             }
             $this->audit->record('facility_booking.created', $booking, ['facility' => ['from' => null, 'to' => $facility->name]]);
 
@@ -213,6 +216,9 @@ class FacilityBookingService
         });
         if ($payOnArrival) {
             $this->payments->announceFacilityBooking($this->find($id));
+        }
+        if ($payment) {
+            $this->online->checkout($payment); // after the commit: the hosted payment page
         }
 
         return ['booking' => $this->find($id), 'key' => $key];
@@ -250,7 +256,7 @@ class FacilityBookingService
             });
             $this->payments->announceFacilityBooking($this->find($id));
         } else {
-            DB::transaction(fn () => $this->payments->startOnlinePayment($booking, $method));
+            $this->online->checkout(DB::transaction(fn () => $this->payments->startOnlinePayment($booking, $method)));
         }
 
         return $this->forGuest($id, $key);

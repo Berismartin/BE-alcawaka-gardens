@@ -9,6 +9,7 @@ use App\Domains\Content\Enquiry\Services\EnquiryService;
 use App\Domains\Guests\Guest\ValueObjects\PhoneNumber;
 use App\Domains\Payments\Payment\Enums\PaymentMethod;
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
+use App\Domains\Payments\Payment\Services\OnlinePaymentService;
 use App\Domains\Payments\Payment\Services\PaymentService;
 use App\Domains\Reservations\Reservation\DTOs\CreateReservationDTO;
 use App\Domains\Reservations\Reservation\DTOs\OnlineBookingDTO;
@@ -41,6 +42,7 @@ class OnlineBookingService
         private ReservationRepositoryInterface $repository,
         private RoomTypeRepositoryInterface $roomTypes,
         private PaymentService $payments,
+        private OnlinePaymentService $online,
         private EnquiryService $enquiries,
         private FolioService $folio,
         private AuditLogger $audit,
@@ -86,7 +88,8 @@ class OnlineBookingService
         $key = Str::random(40);
         $payOnArrival = $dto->paymentMethod === PaymentMethod::Cash;
 
-        $result = DB::transaction(function () use ($dto, $candidates, $requests, $key, $payOnArrival) {
+        $payment = null;
+        $result = DB::transaction(function () use ($dto, $candidates, $requests, $key, $payOnArrival, &$payment) {
             foreach ($candidates as $candidate) {
                 try {
                     $reservation = $this->reservations->create(new CreateReservationDTO(
@@ -102,7 +105,7 @@ class OnlineBookingService
                 }
                 $this->repository->update($reservation, ['guest_key' => $key]);
                 if (! $payOnArrival) {
-                    $this->payments->startOnlinePayment($reservation, $dto->paymentMethod);
+                    $payment = $this->payments->startOnlinePayment($reservation, $dto->paymentMethod);
                 }
 
                 return ['reservation' => $this->reservations->find($reservation->id), 'key' => $key];
@@ -111,6 +114,11 @@ class OnlineBookingService
         });
         if ($payOnArrival) {
             $this->payments->sendBookingMail($result['reservation'], 'confirmed');
+        }
+        if ($payment) {
+            // The room is held and committed; now open the hosted payment page (never inside the transaction).
+            $this->online->checkout($payment);
+            $result['reservation'] = $this->reservations->find($result['reservation']->id);
         }
 
         return $result;
@@ -157,7 +165,7 @@ class OnlineBookingService
             });
             $this->payments->sendBookingMail($this->reservations->find($reservation->id), 'confirmed');
         } else {
-            DB::transaction(fn () => $this->payments->startOnlinePayment($reservation, $method));
+            $this->online->checkout(DB::transaction(fn () => $this->payments->startOnlinePayment($reservation, $method)));
         }
 
         return $this->forGuest($reference, $key);

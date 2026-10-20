@@ -48,6 +48,9 @@ class PublicBookingResource extends JsonResource
                 'status' => $latest->status->value,
                 'amount_ugx' => $latest->amount_ugx,
                 'reference' => $latest->reference,
+                'gateway' => $latest->gateway,
+                // Pesapal's hosted page, while the payment can still be made there
+                'redirect_url' => $latest->status === PaymentStatus::Pending ? $latest->gateway_redirect_url : null,
             ] : null,
             'paid_with' => $this->payments->where('status', PaymentStatus::Succeeded)->where('kind', 'payment')->map(fn (Payment $p) => $p->method->label())->unique()->values(),
             'simulator' => (bool) config('payments.simulator'),

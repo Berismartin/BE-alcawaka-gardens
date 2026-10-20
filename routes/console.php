@@ -2,6 +2,8 @@
 
 use App\Domains\Channels\Channel\Services\ChannelService;
 use App\Domains\Facilities\FacilityBooking\Services\FacilityBookingService;
+use App\Domains\Payments\Gateway\Pesapal\PesapalGateway;
+use App\Domains\Payments\Payment\Services\OnlinePaymentService;
 use App\Domains\Reservations\Reservation\Services\ReservationService;
 use App\Domains\Users\User\Enums\UserRole;
 use App\Models\IdempotencyKey;
@@ -39,6 +41,28 @@ Artisan::command('staff:create-manager {email} {name}', function (string $email,
 })->purpose('Create a manager account for the staff portal');
 
 Schedule::command('model:prune', ['--model' => [IdempotencyKey::class]])->daily();
+
+// Online payments whose IPN never arrived, Pesapal refunds that have been paid, abandoned orders.
+// Runs before the hold expiry below, so a guest who has just paid never loses their room to it.
+Artisan::command('payments:reconcile', function (OnlinePaymentService $online) {
+    $r = $online->reconcile();
+    $this->info("Checked {$r['checked']}, settled {$r['settled']}, abandoned {$r['abandoned']}, refunds completed {$r['refunds']}.");
+})->purpose('Settle online payments with the payment gateway');
+Schedule::command('payments:reconcile')->everyMinute()->withoutOverlapping();
+
+// One-off setup when going live: tells Pesapal where to send payment notifications.
+Artisan::command('payments:pesapal-register-ipn {url?}', function (PesapalGateway $pesapal, ?string $url = null) {
+    $url ??= rtrim(config('app.url'), '/').'/api/payments/pesapal/ipn';
+    if (! str_starts_with($url, 'https://') && app()->isProduction()) {
+        $this->error('Pesapal needs a public https address for the IPN.');
+
+        return 1;
+    }
+    $this->info('Registered '.$url);
+    $this->line('Put this in .env: PESAPAL_IPN_ID='.$pesapal->registerIpn($url));
+
+    return 0;
+})->purpose('Register the Pesapal IPN address and print its id');
 
 // Unpaid website holds give their room back.
 Schedule::call(fn () => app(ReservationService::class)->expireHolds())

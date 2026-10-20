@@ -87,9 +87,33 @@ All `/api/portal/...` routes need a staff bearer token plus the ability shown. A
 | GET, POST, DELETE `{id}` | `/api/portal/pos/terminals` | `pos.manage` (managers) |
 | DELETE | `/api/portal/pos/staff/{id}/pin` | `pos.manage` |
 
+## Online payments (Pesapal)
+
+Website guests pay rooms and facility bookings on Pesapal's hosted page (MTN MoMo, Airtel Money, Visa/Mastercard).
+Locally `PAYMENT_GATEWAY=simulator` replaces Pesapal with a test panel on the booking page.
+
+| Method | Path | Who |
+|---|---|---|
+| GET, POST | `/api/payments/pesapal/ipn` | Pesapal (status is always re-checked with Pesapal; replies in Pesapal's IPN format) |
+| POST | `/api/payments/return` | the guest's browser back from Pesapal (`order_tracking_id`) |
+| POST | `/api/portal/payments/{id}/check` | `payments.record` ("Check with Pesapal") |
+
+Rules: Pesapal is the only source of truth for online payments (staff can't hand-approve them); settlement locks the
+payment row, so a repeated IPN never counts twice; refunds go to Pesapal first and complete when Pesapal reports the
+payment reversed (one refund per payment, mobile money in full only); money that arrives after a hold lapsed or that
+overpays a bill is kept and staff are alerted to refund or rebook.
+
+Going live:
+1. `.env`: `PAYMENT_GATEWAY=pesapal`, `PESAPAL_ENV=live`, `PESAPAL_CONSUMER_KEY`, `PESAPAL_CONSUMER_SECRET` (from the Pesapal merchant dashboard), `APP_URL` = the public https API address, `FRONTEND_URL` = the website.
+2. `php artisan payments:pesapal-register-ipn` and put the printed id in `PESAPAL_IPN_ID`.
+3. Keep the scheduler running: `payments:reconcile` settles payments whose IPN never arrived.
+
+Sandbox: `PESAPAL_ENV=sandbox` with Pesapal's public demo keys (see `.env.example`).
+
 ## Scheduled jobs
 
 Run `php artisan schedule:work` locally (cron `schedule:run` in production):
+- every minute: online payments are reconciled with Pesapal (before holds expire)
 - every minute: unpaid website holds expire and give their room back
 - every 15 minutes: OTA calendar feeds are synced (`channels`)
 - daily: old idempotency keys are pruned

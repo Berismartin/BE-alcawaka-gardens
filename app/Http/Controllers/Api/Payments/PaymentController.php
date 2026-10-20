@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Api\Payments;
 
+use App\Actions\Payments\Payment\CheckPaymentAction;
 use App\Actions\Payments\Payment\ExportPaymentsAction;
 use App\Actions\Payments\Payment\PaginatePaymentsAction;
 use App\Actions\Payments\Payment\PaymentSummaryAction;
 use App\Actions\Payments\Payment\RefundPaymentAction;
 use App\Actions\Payments\Payment\SettlePaymentAction;
+use App\Domains\Payments\Payment\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Payments\ListPaymentsRequest;
 use App\Http\Requests\Payments\RefundRequest;
@@ -48,7 +50,17 @@ class PaymentController extends Controller
 
     public function refund(RefundRequest $request, string $id, RefundPaymentAction $action): JsonResponse
     {
-        return $this->respond($action->execute($id, $request->validated()), 'Refund recorded.', Response::HTTP_CREATED);
+        $refund = $action->execute($id, $request->validated());
+        $message = $refund->resource->status === PaymentStatus::Pending
+            ? 'Refund requested from Pesapal. It shows as refunded once Pesapal pays it back.'
+            : 'Refund recorded.';
+
+        return $this->respond($refund, $message, Response::HTTP_CREATED);
+    }
+
+    public function check(string $id, CheckPaymentAction $action): JsonResponse
+    {
+        return $this->respond($action->execute($id), 'Checked with Pesapal.');
     }
 
     public function settle(SettlePaymentRequest $request, string $id, SettlePaymentAction $action): JsonResponse

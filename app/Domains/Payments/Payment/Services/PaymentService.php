@@ -6,6 +6,8 @@ use App\Domains\Audit\AuditLog\Services\AuditLogger;
 use App\Domains\Facilities\FacilityBooking\Enums\ChargeMode;
 use App\Domains\Facilities\FacilityBooking\Enums\FacilityBookingStatus;
 use App\Domains\Notifications\Services\NotificationService;
+use App\Domains\Payments\Gateway\DTOs\GatewayRefundRequest;
+use App\Domains\Payments\Gateway\PaymentGateway;
 use App\Domains\Payments\Payment\DTOs\RecordPaymentDTO;
 use App\Domains\Payments\Payment\DTOs\RefundDTO;
 use App\Domains\Payments\Payment\Enums\PaymentMethod;
@@ -25,6 +27,7 @@ use App\Support\Query\ListQuery;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Str;
@@ -37,6 +40,7 @@ class PaymentService
         private AuditLogger $audit,
         private SettingsService $settings,
         private NotificationService $notifications,
+        private PaymentGateway $gateway,
     ) {}
 
     public function paginate(ListQuery $query): LengthAwarePaginator
@@ -123,11 +127,27 @@ class PaymentService
         return $payment;
     }
 
-    /** Requests nobody approved: marked failed so they never count as money in. */
+    /**
+     * Requests nobody approved: marked failed so they never count as money in. A gateway order is also
+     * cancelled at the provider, after the commit (never a network call inside a transaction). If the guest
+     * still pays it somehow, the IPN brings the money in as a late payment and staff are told.
+     */
     public function failPending(Reservation|FacilityBooking $owner): void
     {
         foreach ($this->repository->pendingFor($owner) as $payment) {
             $this->repository->update($payment, ['status' => PaymentStatus::Failed->value, 'notes' => 'Not approved']);
+            if ($payment->viaGateway()) {
+                DB::afterCommit(fn () => $this->cancelAtGateway($payment));
+            }
+        }
+    }
+
+    private function cancelAtGateway(Payment $payment): void
+    {
+        try {
+            $this->gateway->cancel($payment->gateway_tracking_id);
+        } catch (Throwable $e) {
+            report($e); // already paid, already cancelled or unreachable: reconcile and the IPN still have the last word
         }
     }
 
@@ -147,7 +167,11 @@ class PaymentService
         ]);
     }
 
-    /** Manager only: money back to the guest, never more than was paid. */
+    /**
+     * Manager only: money back to the guest, never more than was paid. Desk payments are refunded on the spot.
+     * Online payments are refunded through the gateway: the request goes to Pesapal first (outside any transaction),
+     * then a pending refund is saved; it completes when Pesapal reports the payment reversed (payments:reconcile).
+     */
     public function refund(string $paymentId, RefundDTO $dto): Payment
     {
         $payment = $this->find($paymentId);
@@ -159,7 +183,43 @@ class PaymentService
             $message = $refundable > 0 ? 'You can refund at most '.self::ugx($refundable).' on this payment.' : 'This payment has already been refunded in full.';
             throw new EntityValidationException($message, ['amount_ugx' => [$message]]);
         }
+        if ($payment->viaGateway()) {
+            $this->assertGatewayRefundable($payment, $dto);
+            $this->gateway->requestRefund(new GatewayRefundRequest(
+                confirmationCode: $payment->gateway_confirmation_code,
+                amountUgx: $dto->amountUgx,
+                requestedBy: auth()->user()?->name ?? 'Alcawaka Gardens',
+                reason: $dto->reason,
+            ));
+        }
 
+        try {
+            return $this->saveRefund($payment, $dto);
+        } catch (Throwable $e) {
+            if ($payment->viaGateway()) {
+                // The provider accepted the refund but we could not save it: staff must record it by hand.
+                Log::critical('Gateway refund requested but not saved', ['payment_id' => $payment->id, 'amount_ugx' => $dto->amountUgx]);
+            }
+            throw $e;
+        }
+    }
+
+    private function assertGatewayRefundable(Payment $payment, RefundDTO $dto): void
+    {
+        if (! $payment->gateway_confirmation_code) {
+            throw new EntityValidationException('Pesapal has not confirmed this payment yet, so it can’t be refunded. Use "Check with Pesapal" first.');
+        }
+        if ($this->repository->hasRefundRequest($payment)) {
+            throw new EntityValidationException('Pesapal allows one refund per payment, and this payment already has one.');
+        }
+        if ($payment->isMobileMoney() && $dto->amountUgx !== $payment->amount_ugx) {
+            $message = 'Mobile money payments can only be refunded in full ('.self::ugx($payment->amount_ugx).').';
+            throw new EntityValidationException($message, ['amount_ugx' => [$message]]);
+        }
+    }
+
+    private function saveRefund(Payment $payment, RefundDTO $dto): Payment
+    {
         return DB::transaction(function () use ($payment, $dto) {
             $refund = $this->repository->create([
                 'reservation_id' => $payment->reservation_id,
@@ -168,12 +228,13 @@ class PaymentService
                 'kind' => 'refund',
                 'method' => $payment->method->value,
                 'amount_ugx' => $dto->amountUgx,
-                'status' => PaymentStatus::Succeeded->value,
+                // A gateway refund is only money out once the provider pays it back.
+                'status' => ($payment->viaGateway() ? PaymentStatus::Pending : PaymentStatus::Succeeded)->value,
                 'notes' => $dto->reason,
                 'recorded_by' => auth()->id(),
                 'received_at' => now(),
             ]);
-            $this->audit->record('payment.refunded', $payment->reservation ?? $payment, [
+            $this->audit->record($payment->viaGateway() ? 'payment.refund_requested' : 'payment.refunded', $payment->reservation ?? $payment, [
                 'amount_ugx' => ['from' => null, 'to' => $dto->amountUgx],
                 'reason' => ['from' => null, 'to' => $dto->reason],
             ]);
@@ -189,6 +250,9 @@ class PaymentService
         if ($payment->status !== PaymentStatus::Pending) {
             throw new EntityValidationException('This payment is already settled.');
         }
+        if ($payment->viaGateway()) {
+            throw new EntityValidationException('Pesapal confirms this payment. Use "Check with Pesapal" instead.');
+        }
         if ($status === PaymentStatus::Pending) {
             throw new EntityValidationException('Choose received or failed.');
         }
@@ -198,15 +262,50 @@ class PaymentService
             $this->audit->record('payment.'.($status === PaymentStatus::Succeeded ? 'confirmed' : 'failed'), $payment->reservation ?? $payment, [
                 'amount_ugx' => ['from' => null, 'to' => $payment->amount_ugx],
             ]);
-            if ($updated->reservation) {
-                $this->confirmIfPaid($updated->reservation);
-            }
-            if ($updated->facilityBooking) {
-                $this->confirmFacilityIfPaid($updated->facilityBooking);
+            if ($status === PaymentStatus::Succeeded) {
+                $this->afterMoneyIn($updated);
             }
 
             return $updated;
         });
+    }
+
+    /**
+     * Money has just arrived (desk approval, simulator or gateway). Confirms the booking when it is now paid,
+     * and tells staff when the money can't simply be kept: the booking had already lapsed, or it is overpaid.
+     */
+    public function afterMoneyIn(Payment $payment): void
+    {
+        $payment->load(['reservation', 'facilityBooking.facility']); // full rows: lists load them trimmed
+        $amount = self::ugx($payment->amount_ugx);
+        if ($reservation = $payment->reservation) {
+            $reference = $reservation->reference();
+            if (in_array($reservation->status, [ReservationStatus::Expired, ReservationStatus::Cancelled, ReservationStatus::NoShow], true)) {
+                $this->alertRefund("{$amount} received for {$reference}, which had already {$reservation->status->label()}", 'Rebook the guest or refund them from Payments.', "/portal/reservations/{$reservation->id}");
+
+                return;
+            }
+            $this->confirmIfPaid($reservation);
+            if (($balance = $reservation->refresh()->load(['charges', 'payments'])->balance()) < 0) {
+                $this->alertRefund("{$reference} is overpaid by ".self::ugx(-$balance), 'Two payments arrived for the same bill. Refund the extra from Payments.', "/portal/reservations/{$reservation->id}");
+            }
+        }
+        if ($booking = $payment->facilityBooking) {
+            if ($booking->status === FacilityBookingStatus::Cancelled) {
+                $this->alertRefund("{$amount} received for a cancelled {$booking->facility?->name} booking", "{$booking->guest_name}: rebook or refund them from Payments.", '/portal/payments');
+
+                return;
+            }
+            $this->confirmFacilityIfPaid($booking);
+            if (($over = $booking->refresh()->load('payments')->paidAmount() - $booking->amount_ugx) > 0) {
+                $this->alertRefund("{$booking->guest_name}'s {$booking->facility?->name} booking is overpaid by ".self::ugx($over), 'Refund the extra from Payments.', '/portal/payments');
+            }
+        }
+    }
+
+    private function alertRefund(string $title, string $body, string $url): void
+    {
+        $this->notifications->notify('payments.refund', new PortalNotification($title, $body, $url, 'i-lucide-triangle-alert'));
     }
 
     /** A website hold becomes a real booking once it is fully paid, however the money arrived. */
@@ -217,7 +316,7 @@ class PaymentService
         if ($reservation->status === ReservationStatus::PendingPayment && $reservation->balance() <= 0) {
             $reservation->update(['status' => ReservationStatus::Confirmed->value, 'hold_expires_at' => null]);
             $this->audit->record('reservation.confirmed', $reservation);
-            $this->sendBookingMail($reservation, 'confirmed');
+            DB::afterCommit(fn () => $this->sendBookingMail($reservation, 'confirmed')); // email only once the confirmation is saved
         }
     }
 
@@ -244,11 +343,13 @@ class PaymentService
             'i-lucide-waves',
         ));
         if ($booking->guest_email) {
-            try {
-                Mail::to($booking->guest_email)->send(new FacilityBookingConfirmedMail($booking, $this->settings->all()));
-            } catch (Throwable $e) {
-                report($e);
-            }
+            DB::afterCommit(function () use ($booking) {
+                try {
+                    Mail::to($booking->guest_email)->send(new FacilityBookingConfirmedMail($booking, $this->settings->all()));
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            });
         }
     }
 

@@ -32,5 +32,11 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Tests never reach a real payment provider, whatever .env says. -->
+        <env name="PAYMENT_GATEWAY" value="simulator" force="true"/>
+        <env name="PESAPAL_ENV" value="sandbox" force="true"/>
+        <env name="PESAPAL_CONSUMER_KEY" value="" force="true"/>
+        <env name="PESAPAL_CONSUMER_SECRET" value="" force="true"/>
+        <env name="PESAPAL_IPN_ID" value="" force="true"/>
     </php>
 </phpunit>

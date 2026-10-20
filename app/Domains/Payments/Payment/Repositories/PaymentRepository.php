@@ -22,6 +22,7 @@ class PaymentRepository implements PaymentRepositoryInterface
         'reservation.guest:id,full_name',
         'reservation.room:id,number',
         'facilityBooking:id,guest_name,facility_id',
+        'original:id,gateway,gateway_tracking_id',
         'facilityBooking.facility:id,name',
         'recorder:id,name',
     ];
@@ -82,6 +83,34 @@ class PaymentRepository implements PaymentRepositoryInterface
         return $payment->refresh()->load(self::WITH);
     }
 
+    public function findForUpdate(string $id): ?Payment
+    {
+        return Payment::query()->lockForUpdate()->find($id);
+    }
+
+    public function findByTrackingId(string $trackingId): ?Payment
+    {
+        return Payment::where('gateway_tracking_id', $trackingId)->first();
+    }
+
+    public function pendingAtGateway(\DateTimeInterface $createdBefore): Collection
+    {
+        return Payment::where('status', PaymentStatus::Pending->value)->where('kind', 'payment')
+            ->whereNotNull('gateway')->whereNotNull('gateway_tracking_id')
+            ->where('created_at', '<=', $createdBefore)->oldest()->get();
+    }
+
+    public function pendingGatewayRefunds(): Collection
+    {
+        return Payment::where('kind', 'refund')->where('status', PaymentStatus::Pending->value)
+            ->whereHas('original', fn ($q) => $q->whereNotNull('gateway_tracking_id'))->with('original')->get();
+    }
+
+    public function hasRefundRequest(Payment $payment): bool
+    {
+        return $payment->refunds()->where('status', '!=', PaymentStatus::Failed->value)->exists();
+    }
+
     public function refundedAmount(Payment $payment): int
     {
         return (int) $payment->refunds()->where('status', PaymentStatus::Succeeded->value)->sum('amount_ugx');
@@ -90,7 +119,7 @@ class PaymentRepository implements PaymentRepositoryInterface
     public function pendingFor(Reservation|FacilityBooking $owner): Collection
     {
         return Payment::where($owner instanceof Reservation ? 'reservation_id' : 'facility_booking_id', $owner->id)
-            ->where('status', PaymentStatus::Pending->value)->get();
+            ->where('kind', 'payment')->where('status', PaymentStatus::Pending->value)->get();
     }
 
     public function summary(string $from, string $to): array

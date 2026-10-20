@@ -5,11 +5,18 @@ namespace Tests;
 use App\Domains\Users\User\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Http::preventStrayRequests(); // any outgoing call a test didn't fake fails loudly instead of hitting a real service
+    }
+
     /** Signs in a staff member with the given role and returns them. */
     protected function actingAsRole(UserRole $role = UserRole::Manager): User
     {
