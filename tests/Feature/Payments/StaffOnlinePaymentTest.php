@@ -92,6 +92,57 @@ class StaffOnlinePaymentTest extends TestCase
         $pay(['amount_ugx' => 1000, 'method' => 'mtn_momo'])->assertForbidden();
     }
 
+    public function test_charges_can_still_be_added_once_paid_in_full(): void
+    {
+        $this->actingAsRole(UserRole::FrontDesk);
+        $id = $this->reservation();
+        $due = $this->balance($id);
+        $paymentId = $this->idempotent()->postJson("/api/portal/reservations/{$id}/online-payments", ['amount_ugx' => $due, 'method' => 'mtn_momo'])->json('data.id');
+        $this->paid('trk-1', $due);
+        $this->postJson("/api/portal/payments/{$paymentId}/check")->assertJsonPath('data.status', 'succeeded');
+        $this->assertSame(0, $this->balance($id));
+
+        $this->postJson("/api/portal/reservations/{$id}/charges", ['category' => 'bar', 'description' => 'Soda', 'amount_ugx' => 2000])
+            ->assertCreated()->assertJsonPath('data.totals.balance_ugx', 2000);
+    }
+
+    public function test_the_manager_passes_pesapal_fees_to_the_guest(): void
+    {
+        $this->actingAsRole(UserRole::FrontDesk);
+        $this->patchJson('/api/portal/settings', ['gateway_fee_payer' => 'guest'])->assertForbidden(); // a manager decision
+        $this->actingAsRole(UserRole::Manager);
+        $this->patchJson('/api/portal/settings', ['gateway_fee_payer' => 'nobody'])->assertUnprocessable()->assertJsonValidationErrors('gateway_fee_payer');
+        $this->patchJson('/api/portal/settings', ['gateway_fee_payer' => 'guest', 'gateway_fee_percent' => 3.5])->assertOk();
+
+        $id = $this->reservation();
+        $due = $this->balance($id);
+        // 100,000 on the bill: the guest is charged 103,627 so that after Pesapal's 3.5% the hotel gets the 100,000.
+        $paymentId = $this->idempotent()->postJson("/api/portal/reservations/{$id}/online-payments", ['amount_ugx' => 100000, 'method' => 'mtn_momo'])
+            ->assertCreated()->assertJsonPath('data.amount_ugx', 100000)
+            ->assertJsonPath('data.gateway_details.fee_ugx', 3627)->assertJsonPath('data.gateway_details.charged_ugx', 103627)->json('data.id');
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), 'SubmitOrderRequest') && $r['amount'] === 103627);
+
+        $this->paid('trk-1', 103627);
+        $this->postJson("/api/portal/payments/{$paymentId}/check")->assertJsonPath('data.status', 'succeeded')->assertJsonPath('data.amount_ugx', 100000)->assertJsonPath('data.notes', null);
+        $this->assertSame($due - 100000, $this->balance($id));
+
+        // A full refund gives back everything Pesapal took, fee included (mobile money refunds are full only).
+        $this->idempotent()->postJson("/api/portal/payments/{$paymentId}/refund", ['amount_ugx' => 100000, 'reason' => 'Changed plans'])->assertCreated();
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), 'RefundRequest') && (int) $r['amount'] === 103627);
+    }
+
+    public function test_by_default_the_hotel_carries_the_fee(): void
+    {
+        $this->actingAsRole(UserRole::FrontDesk);
+        $id = $this->reservation();
+        $paymentId = $this->idempotent()->postJson("/api/portal/reservations/{$id}/online-payments", ['amount_ugx' => 100000, 'method' => 'card'])
+            ->assertJsonPath('data.gateway_details.fee_ugx', 3500)->assertJsonPath('data.gateway_details.fee_payer', 'hotel')
+            ->assertJsonPath('data.gateway_details.charged_ugx', 100000)->json('data.id');
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), 'SubmitOrderRequest') && $r['amount'] === 100000);
+        $this->paid('trk-1', 100000, 'Visa');
+        $this->postJson("/api/portal/payments/{$paymentId}/check")->assertJsonPath('data.amount_ugx', 100000);
+    }
+
     public function test_pos_facility_pay_later_booking_settled_through_pesapal(): void
     {
         $pool = Facility::factory()->create(['name' => 'Pool', 'access' => 'paid', 'price_ugx' => 20000, 'capacity' => 30]);

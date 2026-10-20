@@ -47,6 +47,7 @@ class PublicBookingResource extends JsonResource
                 'method_label' => $latest->method->label(),
                 'status' => $latest->status->value,
                 'amount_ugx' => $latest->amount_ugx,
+                'fee_ugx' => $latest->guestFee(), // Pesapal's fee charged on top, when the guest pays it
                 'reference' => $latest->reference,
                 'gateway' => $latest->gateway,
                 // Pesapal's hosted page, while the payment can still be made there

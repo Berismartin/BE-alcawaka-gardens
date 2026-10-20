@@ -19,6 +19,9 @@ class SettingsService
         'check_out_time' => '10:00',
         'cancellation_policy' => null,
         'receipt_footer' => 'Thank you for staying with us.',
+        // Online payments: who carries Pesapal's fee ('hotel' or 'guest'), and the contract rate in percent.
+        'gateway_fee_payer' => 'hotel',
+        'gateway_fee_percent' => 3.5,
     ];
 
     private ?array $cache = null;

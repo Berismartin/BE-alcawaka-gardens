@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'reservation_id', 'facility_booking_id', 'refund_of_id', 'kind', 'method', 'amount_ugx',
     'status', 'reference', 'notes', 'recorded_by', 'received_at',
     'gateway', 'gateway_tracking_id', 'gateway_redirect_url', 'gateway_confirmation_code',
-    'gateway_payment_method', 'gateway_account', 'gateway_checked_at',
+    'gateway_payment_method', 'gateway_account', 'gateway_checked_at', 'gateway_fee_ugx', 'gateway_fee_payer',
 ])]
 class Payment extends Model
 {
@@ -59,6 +59,12 @@ class Payment extends Model
     public function viaGateway(): bool
     {
         return $this->gateway !== null && $this->gateway_tracking_id !== null;
+    }
+
+    /** Pesapal's fee when the guest paid it on top of amount_ugx; 0 when the hotel carries it. */
+    public function guestFee(): int
+    {
+        return $this->gateway_fee_payer === 'guest' ? (int) $this->gateway_fee_ugx : 0;
     }
 
     /** Pesapal only refunds mobile money in full; cards may be partly refunded. */

@@ -194,9 +194,12 @@ class PaymentService
         }
         if ($payment->viaGateway()) {
             $this->assertGatewayRefundable($payment, $dto);
+            // A full refund returns everything Pesapal took, including a fee the guest paid on top
+            // (and mobile money can only be refunded in full).
+            $guestFee = $dto->amountUgx === $payment->amount_ugx ? $payment->guestFee() : 0;
             $this->gateway->requestRefund(new GatewayRefundRequest(
                 confirmationCode: $payment->gateway_confirmation_code,
-                amountUgx: $dto->amountUgx,
+                amountUgx: $dto->amountUgx + $guestFee,
                 requestedBy: auth()->user()?->name ?? 'Alcawaka Gardens',
                 reason: $dto->reason,
             ));

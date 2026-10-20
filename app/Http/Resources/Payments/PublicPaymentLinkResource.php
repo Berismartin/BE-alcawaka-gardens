@@ -2,8 +2,10 @@
 
 namespace App\Http\Resources\Payments;
 
+use App\Domains\Payments\Gateway\GatewayFee;
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
 use App\Domains\Payments\PaymentLink\Services\PaymentLinkService;
+use App\Domains\Settings\Setting\Services\SettingsService;
 use App\Models\Payments\PaymentLink;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -36,7 +38,9 @@ class PublicPaymentLinkResource extends JsonResource
             'total_ugx' => $r ? $r->totalCharges() : $b->amount_ugx,
             'paid_ugx' => $r ? $r->totalPaid() : $b->paidAmount(),
             'due_ugx' => PaymentLinkService::due($this->owner()),
-            'pay_now_ugx' => PaymentLinkService::payNow($this->resource),
+            'pay_now_ugx' => $payNow = PaymentLinkService::payNow($this->resource),
+            // Pesapal's fee added on top when the hotel passes it to the guest (none in test mode)
+            'fee_ugx' => config('payments.simulator') ? 0 : (GatewayFee::fromSettings(app(SettingsService::class))->quote($payNow)['charge_ugx'] - $payNow),
             'message' => $this->message,
             'status' => PaymentLinkService::status($this->resource),
             'expires_at' => $this->expires_at->toISOString(),

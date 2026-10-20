@@ -35,6 +35,10 @@ class PaymentResource extends JsonResource
                 'paid_with' => $this->gateway_payment_method,
                 'account' => $this->gateway_account,
                 'checked_at' => $this->gateway_checked_at?->toISOString(),
+                'fee_ugx' => $this->gateway_fee_ugx,
+                'fee_payer' => $this->gateway_fee_payer,
+                // What the guest is asked for on Pesapal's page
+                'charged_ugx' => $this->amount_ugx + $this->guestFee(),
             ] : null,
             // What staff may do: online payments are confirmed by Pesapal, never approved by hand.
             'can_check' => $this->status === PaymentStatus::Pending && ($this->viaGateway() || ($this->isRefund() && $this->relationLoaded('original') && $this->original?->viaGateway())),

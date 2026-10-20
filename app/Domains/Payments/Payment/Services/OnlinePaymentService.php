@@ -7,11 +7,13 @@ use App\Domains\Facilities\FacilityBooking\Enums\FacilityBookingStatus;
 use App\Domains\Payments\Gateway\DTOs\CheckoutRequest;
 use App\Domains\Payments\Gateway\DTOs\GatewayStatus;
 use App\Domains\Payments\Gateway\Enums\GatewayState;
+use App\Domains\Payments\Gateway\GatewayFee;
 use App\Domains\Payments\Gateway\PaymentGateway;
 use App\Domains\Payments\Payment\Enums\PaymentMethod;
 use App\Domains\Payments\Payment\Enums\PaymentStatus;
 use App\Domains\Payments\Payment\Repositories\PaymentRepositoryInterface;
 use App\Domains\Reservations\Reservation\Enums\ReservationStatus;
+use App\Domains\Settings\Setting\Services\SettingsService;
 use App\Exceptions\EntityNotFoundException;
 use App\Exceptions\EntityValidationException;
 use App\Exceptions\GatewayException;
@@ -38,6 +40,7 @@ class OnlinePaymentService
         private PaymentRepositoryInterface $repository,
         private PaymentService $payments,
         private AuditLogger $audit,
+        private SettingsService $settings,
     ) {}
 
     /**
@@ -51,8 +54,9 @@ class OnlinePaymentService
         if ($payment->status !== PaymentStatus::Pending || $payment->viaGateway()) {
             return $payment;
         }
+        $fee = GatewayFee::fromSettings($this->settings)->quote($payment->amount_ugx);
         try {
-            $session = $this->gateway->createCheckout($this->checkoutRequest($payment, $returnPath));
+            $session = $this->gateway->createCheckout($this->checkoutRequest($payment, $returnPath, $fee['charge_ugx']));
         } catch (GatewayException $e) {
             report($e);
 
@@ -66,6 +70,8 @@ class OnlinePaymentService
             'gateway' => $this->gateway->name(),
             'gateway_tracking_id' => $session->trackingId,
             'gateway_redirect_url' => $session->redirectUrl,
+            'gateway_fee_ugx' => $fee['fee_ugx'],
+            'gateway_fee_payer' => $fee['payer'],
         ]);
     }
 
@@ -205,8 +211,12 @@ class OnlinePaymentService
 
             return false;
         }
-        $paid = $status->amountUgx ?? $payment->amount_ugx;
-        $note = $paid !== $payment->amount_ugx ? 'Gateway amount differs from the request ('.number_format($payment->amount_ugx).')' : null;
+        // When the guest carries Pesapal's fee it was charged on top: only the rest goes against the bill.
+        $guestFee = $payment->guestFee();
+        $charged = $payment->amount_ugx + $guestFee;
+        $gross = $status->amountUgx ?? $charged;
+        $paid = max(0, $gross - $guestFee);
+        $note = $gross !== $charged ? 'Gateway amount differs from the request ('.number_format($charged).')' : null;
         // A payment we gave up on (hold expired, method switched) that the guest paid anyway is still money in.
         $wasFailed = $payment->status === PaymentStatus::Failed;
         $this->repository->update($payment, [
@@ -286,7 +296,7 @@ class OnlinePaymentService
         };
     }
 
-    private function checkoutRequest(Payment $payment, string $returnPath): CheckoutRequest
+    private function checkoutRequest(Payment $payment, string $returnPath, int $chargeUgx): CheckoutRequest
     {
         $reservation = $payment->reservation;
         $booking = $payment->facilityBooking;
@@ -296,7 +306,7 @@ class OnlinePaymentService
 
         return new CheckoutRequest(
             merchantReference: $payment->id,
-            amountUgx: $payment->amount_ugx,
+            amountUgx: $chargeUgx,
             description: $reservation
                 ? 'Alcawaka Gardens room booking '.$reservation->reference()
                 : 'Alcawaka Gardens '.($booking?->facility?->name ?? 'facility').' booking',
