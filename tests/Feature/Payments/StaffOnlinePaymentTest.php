@@ -110,6 +110,19 @@ class StaffOnlinePaymentTest extends TestCase
         $this->getJson("/api/portal/facility-bookings/{$id}")->assertOk()->assertJsonPath('data.status', 'confirmed')->assertJsonPath('data.charge_mode', 'paid');
     }
 
+    public function test_invoice_email_is_remembered_when_the_booking_had_none(): void
+    {
+        $this->actingAsRole(UserRole::FrontDesk);
+        $pool = Facility::factory()->create(['name' => 'Pool', 'access' => 'paid', 'price_ugx' => 20000, 'capacity' => 30]);
+        $id = $this->idempotent()->postJson('/api/portal/facility-bookings', [
+            'facility_id' => $pool->id, 'starts_at' => now('Africa/Kampala')->addHour()->format('Y-m-d H:i'), 'party_size' => 2,
+            'charge_mode' => 'pay_later', 'guest_name' => 'Grace Achieng', 'amount_ugx' => 40000,
+        ])->assertCreated()->assertJsonPath('data.guest_email', null)->json('data.id');
+
+        $this->postJson("/api/portal/facility-bookings/{$id}/payment-links", ['email' => 'grace@example.com'])->assertCreated();
+        $this->getJson("/api/portal/facility-bookings/{$id}")->assertJsonPath('data.guest_email', 'grace@example.com');
+    }
+
     public function test_emailed_invoice_link_is_paid_by_the_guest_once(): void
     {
         $this->actingAsRole(UserRole::FrontDesk);

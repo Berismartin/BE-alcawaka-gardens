@@ -42,7 +42,7 @@ class PesapalGateway implements PaymentGateway
             'callback_url' => $request->callbackUrl,
             'cancellation_url' => $request->cancellationUrl,
             'notification_id' => $this->ipnId,
-            'redirect_mode' => 'TOP_WINDOW',
+            'redirect_mode' => 'PARENT_WINDOW', // the page runs in our iframe; the callback loads in that frame, not over our app
             'billing_address' => array_filter([
                 'email_address' => $request->email,
                 'phone_number' => $request->phone,

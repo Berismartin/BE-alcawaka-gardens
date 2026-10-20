@@ -24,6 +24,7 @@ class FacilityBookingResource extends JsonResource
             ] : null),
             'guest_name' => $this->guest_name,
             'guest_phone' => $this->guest_phone,
+            'guest_email' => $this->guest_email,
             'starts_at' => $this->starts_at->toISOString(),
             'ends_at' => $this->ends_at?->toISOString(),
             'party_size' => $this->party_size,

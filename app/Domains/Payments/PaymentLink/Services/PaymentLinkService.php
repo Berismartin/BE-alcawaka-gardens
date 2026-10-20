@@ -64,6 +64,12 @@ class PaymentLinkService
                 'email' => ['from' => null, 'to' => $email],
                 'amount_ugx' => ['from' => null, 'to' => $amountUgx ?? self::due($owner)],
             ]);
+            // Remember the address when the booking had none, so the next invoice or receipt is prefilled.
+            $contact = $owner instanceof Reservation ? $owner->guest : $owner;
+            $field = $owner instanceof Reservation ? 'email' : 'guest_email';
+            if ($contact && blank($contact->{$field})) {
+                $contact->update([$field => $email]);
+            }
 
             return $link;
         });
