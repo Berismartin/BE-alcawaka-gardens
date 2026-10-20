@@ -4,6 +4,7 @@
 <body style="margin:0;padding:24px;background:{{ ($pdf ?? false) ? '#fff' : '#f2f4f1' }};font-family:'DejaVu Sans',Arial,sans-serif;color:#0e2420">
 <table role="presentation" style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #d5dbd6;border-radius:12px;padding:24px;width:100%">
   <tr><td>
+    @include('mail.partials.logo')
     <p style="margin:0 0 12px;font-size:13px;color:#4f615c;text-transform:uppercase;letter-spacing:.08em">{{ ucfirst($title) }} {{ $reservation->reference() }} · {{ now('Africa/Kampala')->format('j M Y') }}</p>
     <h1 style="margin:0 0 4px;font-size:22px">{{ $hotel['hotel_name'] }}</h1>
     <p style="margin:0 0 20px;color:#4f615c;font-size:13px">{{ collect([$hotel['address'], $hotel['phone'], $hotel['email']])->filter()->join(' · ') }}</p>

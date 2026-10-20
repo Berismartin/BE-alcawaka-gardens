@@ -8,6 +8,7 @@
 <body style="margin:0;padding:24px;background:#f2f4f1;font-family:Arial,sans-serif;color:#0e2420">
 <table role="presentation" style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #d5dbd6;border-radius:12px;padding:24px;width:100%">
   <tr><td>
+    @include('mail.partials.logo')
     <p style="margin:0 0 4px;color:#4f615c;font-size:13px;text-transform:uppercase;letter-spacing:.08em">Invoice</p>
     <h1 style="margin:0 0 6px;font-size:22px">{{ $hotel['hotel_name'] }}</h1>
     <p style="margin:0 0 18px;color:#4f615c">

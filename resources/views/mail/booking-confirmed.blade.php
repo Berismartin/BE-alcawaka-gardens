@@ -4,6 +4,7 @@
 <body style="margin:0;padding:24px;background:#f2f4f1;font-family:Arial,sans-serif;color:#0e2420">
 <table role="presentation" style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #d5dbd6;border-radius:12px;padding:24px;width:100%">
   <tr><td>
+    @include('mail.partials.logo')
     @php($first = explode(' ', $r->guest->full_name)[0])
     @if ($kind === 'cancelled')
       <h1 style="margin:0 0 8px;font-size:22px">Your booking is cancelled</h1>

@@ -4,6 +4,7 @@
 <body style="margin:0;padding:24px;background:#f2f4f1;font-family:Arial,sans-serif;color:#0e2420">
 <table role="presentation" style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #d5dbd6;border-radius:12px;padding:24px;width:100%">
   <tr><td>
+    @include('mail.partials.logo')
     <h1 style="margin:0 0 8px;font-size:22px">You're booked for {{ $b->facility->name }}</h1>
     <p style="margin:0 0 20px">Thank you, {{ explode(' ', $b->guest_name)[0] }}. We look forward to seeing you at {{ $hotel['hotel_name'] }}.</p>
     <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px">
