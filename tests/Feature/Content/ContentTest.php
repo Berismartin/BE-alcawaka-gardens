@@ -4,7 +4,9 @@ namespace Tests\Feature\Content;
 
 use App\Domains\Users\User\Enums\UserRole;
 use App\Mail\EnquiryReceivedMail;
+use App\Models\Content\ContentEntry;
 use App\Models\Settings\Setting;
+use Database\Seeders\ContentSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -139,5 +141,20 @@ class ContentTest extends TestCase
         $this->assertCount(1, $files()); // still the hero
         $this->putJson('/api/portal/content/site', ['hero_image_url' => 'https://images.unsplash.com/photo-1?w=10'])->assertOk();
         $this->assertCount(0, $files());
+    }
+
+    public function test_reseeding_swaps_leftover_stock_photos_for_the_venues_own(): void
+    {
+        config(['app.frontend_url' => 'https://alcawakagardens.com']);
+        Setting::create(['key' => 'website', 'value' => ['hero_image_url' => 'https://images.unsplash.com/photo-1?w=10', 'cta_image_url' => 'https://api.example.com/storage/mine.webp', 'hero_title' => 'Ours']]);
+        ContentEntry::create(['type' => 'gallery', 'title' => 'Old stock', 'slug' => 'old-stock', 'image_url' => 'https://images.unsplash.com/photo-2', 'is_published' => true]);
+
+        $this->seed(ContentSeeder::class);
+
+        $site = Setting::find('website')->value;
+        $this->assertSame('https://alcawakagardens.com/images/site/cottages-blue-sky-mubende.webp', $site['hero_image_url']);
+        $this->assertSame('https://api.example.com/storage/mine.webp', $site['cta_image_url']);
+        $this->assertSame('Ours', $site['hero_title']);
+        $this->assertFalse(ContentEntry::where('image_url', 'like', '%unsplash%')->exists());
     }
 }

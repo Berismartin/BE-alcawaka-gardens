@@ -25,7 +25,11 @@ class ContentService
 {
     private const SITE_KEY = 'website';
 
-    private const PHOTO = 'https://images.unsplash.com/photo-%s?auto=format&fit=crop&w=1800&q=80';
+    /** A photo of the venue shipped with the website (FE public/images/site, 480/960/1600 wide). */
+    public static function sitePhoto(string $name): string
+    {
+        return rtrim((string) config('app.frontend_url'), '/')."/images/site/{$name}.webp";
+    }
 
     /** Page copy. Unset keys fall back to these, so the site never renders blank. */
     public static function siteDefaults(): array
@@ -35,10 +39,10 @@ class ContentService
             'hero_eyebrow' => 'Gardens · Events · Stays',
             'hero_title' => 'Where Uganda gathers to celebrate',
             'hero_subtitle' => 'Green lawns, shady trees and a sparkling pool, ready for your wedding, Kwanjula, graduation party or a quiet weekend away.',
-            'hero_image_url' => sprintf(self::PHOTO, '1695281536457-01f9a07c575b'),
+            'hero_image_url' => self::sitePhoto('cottages-blue-sky-mubende'),
             'intro_title' => 'A garden made for gatherings',
             'intro_body' => "Alcawaka Gardens is a green escape built around people coming together. Our lawns hold anything from an intimate family lunch to a 600-guest wedding, and our team takes care of the details so you can enjoy the day.\n\nStay the night in a garden-view room, swim in the pool and wake up to birdsong.",
-            'intro_image_url' => sprintf(self::PHOTO, '1578298880489-ff269cea9894'),
+            'intro_image_url' => self::sitePhoto('garden-lawn-outdoor-seating'),
             'stats' => [
                 ['value' => '600+', 'label' => 'guests on the main lawn'],
                 ['value' => '5', 'label' => 'event spaces'],
@@ -50,10 +54,10 @@ class ContentService
             'stay_intro' => 'Quiet rooms a short walk from the lawns and the pool. Perfect for wedding parties, out-of-town guests and weekend breaks.',
             'about_title' => 'Our story',
             'about_body' => "Alcawaka Gardens began as a family garden where relatives gathered for Sunday lunch, introductions and Christmas. Friends started asking to hold their own celebrations here, and the garden grew into a venue.\n\nToday we host weddings, Kwanjula and Kuhingira ceremonies, corporate retreats and birthday parties, and we have rooms for guests who want to stay. We still run it like a family home: warm, unhurried and proudly Ugandan.",
-            'about_image_url' => sprintf(self::PHOTO, '1661332517932-2d441bfb2994'),
+            'about_image_url' => self::sitePhoto('garden-cottages-palms'),
             'cta_title' => 'Planning something special?',
             'cta_body' => 'Book a free site visit. Walk the gardens with our events team and get a quote the same week.',
-            'cta_image_url' => sprintf(self::PHOTO, '1784202388427-5c92c7a165a6'),
+            'cta_image_url' => self::sitePhoto('veranda-garden-view'),
             'opening_hours' => 'Open daily, 7:00 am – 11:00 pm',
             'whatsapp' => null,
             'instagram_url' => null,
